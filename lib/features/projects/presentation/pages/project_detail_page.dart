@@ -99,7 +99,7 @@ class ProjectDetailPage extends StatelessWidget {
           // ── Stats Row ────────────────────────────────────────────
           const SizedBox(height: 24),
           SizedBox(
-            height: 104,
+            height: 112,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),

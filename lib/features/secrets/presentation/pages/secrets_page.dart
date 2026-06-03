@@ -46,7 +46,10 @@ class SecretsPage extends StatelessWidget {
                           SizedBox(height: 4),
                           Text(
                             'Encrypted · Self-hosted · AES-256',
-                            style: TextStyle(color: AppColors.neutral500, fontSize: 12),
+                            style: TextStyle(
+                              color: AppColors.neutral500,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -86,7 +89,10 @@ class SecretsPage extends StatelessWidget {
                         SizedBox(width: 8),
                         Text(
                           'Search secrets...',
-                          style: TextStyle(color: AppColors.neutral500, fontSize: 14),
+                          style: TextStyle(
+                            color: AppColors.neutral500,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
@@ -276,7 +282,10 @@ class _SecretItem extends StatelessWidget {
                   children: [
                     Text(
                       type,
-                      style: const TextStyle(color: AppColors.neutral500, fontSize: 11),
+                      style: const TextStyle(
+                        color: AppColors.neutral500,
+                        fontSize: 11,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     const Expanded(

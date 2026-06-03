@@ -157,7 +157,11 @@ class _Greeting extends StatelessWidget {
           SizedBox(height: 4),
           Text(
             "Here's what's happening.",
-            style: TextStyle(color: AppColors.neutral400, fontSize: 14, height: 1.4),
+            style: TextStyle(
+              color: AppColors.neutral400,
+              fontSize: 14,
+              height: 1.4,
+            ),
           ),
         ],
       ),

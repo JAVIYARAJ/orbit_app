@@ -238,7 +238,11 @@ class ProfilePage extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.logout_rounded, color: AppColors.rose600, size: 16),
+                  Icon(
+                    Icons.logout_rounded,
+                    color: AppColors.rose600,
+                    size: 16,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Sign Out',

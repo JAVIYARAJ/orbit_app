@@ -35,7 +35,10 @@ class UtilitiesPage extends StatelessWidget {
                       SizedBox(height: 4),
                       Text(
                         'All your Orbit modules',
-                        style: TextStyle(color: AppColors.neutral400, fontSize: 14),
+                        style: TextStyle(
+                          color: AppColors.neutral400,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
@@ -70,11 +73,18 @@ class UtilitiesPage extends StatelessWidget {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.search_rounded, color: AppColors.neutral400, size: 16),
+                    Icon(
+                      Icons.search_rounded,
+                      color: AppColors.neutral400,
+                      size: 16,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       'Search modules...',
-                      style: TextStyle(color: AppColors.neutral400, fontSize: 14),
+                      style: TextStyle(
+                        color: AppColors.neutral400,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
