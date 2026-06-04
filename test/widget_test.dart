@@ -1,29 +1,21 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbit_app/app/app.dart';
+import 'package:orbit_app/features/authentication/domain/entities/user_entity.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const OrbitApp());
+  group('UserEntity.avatarInitial', () {
+    test('uses the first letter of the name when present', () {
+      const user = UserEntity(id: '1', email: 'alex@example.com', name: 'Alex');
+      expect(user.avatarInitial, 'A');
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('falls back to the email when name is blank', () {
+      const user = UserEntity(id: '1', email: 'zoe@example.com', name: '  ');
+      expect(user.avatarInitial, 'Z');
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('returns "?" when both name and email are empty', () {
+      const user = UserEntity(id: '1', email: '');
+      expect(user.avatarInitial, '?');
+    });
   });
 }

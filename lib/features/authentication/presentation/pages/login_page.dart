@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
-import 'package:go_router/go_router.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
+import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
+import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
 
-/// Login page — Flutter port of the Orbit React design.
+final RegExp _emailRegExp = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
+/// Login page — Flutter port of the Orbit React design, wired to [AuthCubit].
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -13,6 +17,10 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
+
+  /// Client-side validation error (email/password). Server errors come from
+  /// the cubit's [AuthState.errorMessage].
+  String? _formError;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -24,73 +32,117 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  String? _validate() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (!_emailRegExp.hasMatch(email)) return 'Enter a valid email address.';
+    if (password.length < 6) return 'Password must be at least 6 characters.';
+    return null;
+  }
+
+  void _onSubmit() {
+    FocusScope.of(context).unfocus();
+    final error = _validate();
+    if (error != null) {
+      setState(() => _formError = error);
+      return;
+    }
+    setState(() => _formError = null);
+    context.read<AuthCubit>().login(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+  }
+
+  void _onGoogle() {
+    FocusScope.of(context).unfocus();
+    setState(() => _formError = null);
+    context.read<AuthCubit>().loginWithGoogle();
+  }
+
+  void _clearErrors() {
+    if (_formError != null) setState(() => _formError = null);
+    context.read<AuthCubit>().clearError();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 32),
+        child: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, state) {
+            final busy = state.isSubmitting;
+            final errorText = _formError ?? state.errorMessage;
 
-              // ── Logo header ───────────────────────────────────────────────
-              _LogoHeader(),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 32),
 
-              const SizedBox(height: 48),
+                  // ── Logo header ─────────────────────────────────────────
+                  _LogoHeader(),
 
-              // ── Title block ───────────────────────────────────────────────
-              const Text(
-                'Welcome back',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                  height: 1.2,
-                ),
+                  const SizedBox(height: 48),
+
+                  // ── Title block ─────────────────────────────────────────
+                  const Text(
+                    'Welcome back',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Sign in to your self-hosted workspace',
+                    style: TextStyle(
+                      color: AppColors.neutral400,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ── Form card ───────────────────────────────────────────
+                  _FormCard(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    obscurePassword: _obscurePassword,
+                    busy: busy,
+                    errorText: errorText,
+                    onTogglePassword: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    onChanged: _clearErrors,
+                    onSubmit: _onSubmit,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ── "or continue with" divider ──────────────────────────
+                  const _OrDivider(),
+
+                  const SizedBox(height: 24),
+
+                  // ── Social buttons ──────────────────────────────────────
+                  _SocialButtons(busy: busy, onGoogle: _onGoogle),
+
+                  const SizedBox(height: 64),
+
+                  // ── Footer ──────────────────────────────────────────────
+                  const _Footer(),
+
+                  const SizedBox(height: 16),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Sign in to your self-hosted workspace',
-                style: TextStyle(
-                  color: AppColors.neutral400,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── Form card ─────────────────────────────────────────────────
-              _FormCard(
-                emailController: _emailController,
-                passwordController: _passwordController,
-                obscurePassword: _obscurePassword,
-                onTogglePassword: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── "or continue with" divider ────────────────────────────────
-              const _OrDivider(),
-
-              const SizedBox(height: 24),
-
-              // ── Social buttons ────────────────────────────────────────────
-              const _SocialButtons(),
-
-              const SizedBox(height: 64),
-
-              // ── Footer ───────────────────────────────────────────────────
-              const _Footer(),
-
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -141,13 +193,21 @@ class _FormCard extends StatelessWidget {
     required this.emailController,
     required this.passwordController,
     required this.obscurePassword,
+    required this.busy,
+    required this.errorText,
     required this.onTogglePassword,
+    required this.onChanged,
+    required this.onSubmit,
   });
 
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final bool obscurePassword;
+  final bool busy;
+  final String? errorText;
   final VoidCallback onTogglePassword;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -161,12 +221,20 @@ class _FormCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Error banner
+          if (errorText != null) ...[
+            _ErrorBanner(message: errorText!),
+            const SizedBox(height: 16),
+          ],
+
           // Email
           const _FieldLabel(label: 'Email'),
           const SizedBox(height: 8),
           _InputField(
             controller: emailController,
             placeholder: 'alex@example.com',
+            enabled: !busy,
+            onChanged: onChanged,
             prefixIcon: const Icon(
               Icons.mail_outline_rounded,
               size: 16,
@@ -183,6 +251,10 @@ class _FormCard extends StatelessWidget {
           _InputField(
             controller: passwordController,
             placeholder: '••••••••••',
+            enabled: !busy,
+            onChanged: onChanged,
+            onSubmitted: (_) => onSubmit(),
+            textInputAction: TextInputAction.done,
             prefixIcon: const Icon(
               Icons.lock_outline_rounded,
               size: 16,
@@ -202,7 +274,7 @@ class _FormCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Forgot password
+          // Forgot password (handled on the web platform for now)
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
@@ -226,22 +298,73 @@ class _FormCard extends StatelessWidget {
             width: double.infinity,
             height: 40,
             child: ElevatedButton(
-              onPressed: () => context.go('/dashboard'),
+              onPressed: busy ? null : onSubmit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kOrbitIndigo,
+                disabledBackgroundColor: kOrbitIndigo.withValues(alpha: 0.5),
                 foregroundColor: AppColors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Sign In',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.white,
-                ),
+              child: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Inline error message banner shown at the top of the form card.
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.googleRed.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.googleRed.withValues(alpha: 0.40)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 16,
+            color: AppColors.googleRed,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.googleRed,
+                fontSize: 12,
+                height: 1.4,
               ),
             ),
           ),
@@ -279,7 +402,11 @@ class _InputField extends StatelessWidget {
     required this.prefixIcon,
     this.suffixIcon,
     this.obscureText = false,
+    this.enabled = true,
     this.keyboardType,
+    this.textInputAction,
+    this.onChanged,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
@@ -287,14 +414,22 @@ class _InputField extends StatelessWidget {
   final Widget prefixIcon;
   final Widget? suffixIcon;
   final bool obscureText;
+  final bool enabled;
   final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final VoidCallback? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      enabled: enabled,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      onChanged: onChanged == null ? null : (_) => onChanged!(),
+      onSubmitted: onSubmitted,
       style: const TextStyle(color: AppColors.white, fontSize: 14, height: 1.4),
       decoration: InputDecoration(
         hintText: placeholder,
@@ -322,6 +457,10 @@ class _InputField extends StatelessWidget {
           borderSide: const BorderSide(color: AppColors.borderInput),
         ),
         enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.borderInput),
+        ),
+        disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.borderInput),
         ),
@@ -365,12 +504,15 @@ class _OrDivider extends StatelessWidget {
 
 /// Full-width Google Sign In button.
 class _SocialButtons extends StatelessWidget {
-  const _SocialButtons();
+  const _SocialButtons({required this.busy, required this.onGoogle});
+
+  final bool busy;
+  final VoidCallback onGoogle;
 
   @override
   Widget build(BuildContext context) {
     return _OutlineButton(
-      onTap: () {},
+      onTap: busy ? null : onGoogle,
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -394,20 +536,23 @@ class _SocialButtons extends StatelessWidget {
 class _OutlineButton extends StatelessWidget {
   const _OutlineButton({required this.child, required this.onTap});
   final Widget child;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.borderFaint),
+    return Opacity(
+      opacity: onTap == null ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.borderFaint),
+          ),
+          child: child,
         ),
-        child: child,
       ),
     );
   }

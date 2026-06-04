@@ -101,23 +101,23 @@ class UtilitiesPage extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 0.8,
-              children: const [
-                _ModuleItem(
+              children: [
+                const _ModuleItem(
                   icon: Icons.dashboard_rounded,
                   label: 'Dashboard',
                   color: AppColors.indigo500,
                 ),
-                _ModuleItem(
+                const _ModuleItem(
                   icon: Icons.folder_open_rounded,
                   label: 'Projects',
                   color: AppColors.indigo500,
                 ),
-                _ModuleItem(
+                const _ModuleItem(
                   icon: Icons.check_box_outlined,
                   label: 'Tasks',
                   color: AppColors.emerald,
                 ),
-                _ModuleItem(
+                const _ModuleItem(
                   icon: Icons.description_outlined,
                   label: 'Notes',
                   color: AppColors.amber,
@@ -126,11 +126,19 @@ class UtilitiesPage extends StatelessWidget {
                   icon: Icons.school_outlined,
                   label: 'Learning',
                   color: AppColors.purple600,
+                  onTap: () {
+                    Scaffold.of(context).closeEndDrawer();
+                    context.push('/profile/learning');
+                  },
                 ),
                 _ModuleItem(
                   icon: Icons.access_time_rounded,
                   label: 'Time Track',
                   color: AppColors.rose600,
+                  onTap: () {
+                    Scaffold.of(context).closeEndDrawer();
+                    context.push('/profile/time-tracking');
+                  },
                 ),
               ],
             ),
@@ -147,15 +155,23 @@ class UtilitiesPage extends StatelessWidget {
               crossAxisSpacing: 16,
               childAspectRatio: 0.8,
               children: [
-                const _ModuleItem(
+                _ModuleItem(
                   icon: Icons.code_rounded,
                   label: 'GitHub',
                   color: AppColors.neutral50,
+                  onTap: () {
+                    Scaffold.of(context).closeEndDrawer();
+                    context.push('/profile/github');
+                  },
                 ),
-                const _ModuleItem(
+                _ModuleItem(
                   icon: Icons.change_history_rounded,
                   label: 'Vercel',
                   color: AppColors.neutral50,
+                  onTap: () {
+                    Scaffold.of(context).closeEndDrawer();
+                    context.push('/profile/vercel');
+                  },
                 ),
                 _ModuleItem(
                   icon: Icons.lock_outline_rounded,

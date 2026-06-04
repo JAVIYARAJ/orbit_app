@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit_app/app/router/app_shell.dart';
+import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
 import 'package:orbit_app/features/authentication/presentation/pages/login_page.dart';
 import 'package:orbit_app/features/authentication/presentation/pages/splash_page.dart';
+import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
 import 'package:orbit_app/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/note_detail_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/notes_page.dart';
@@ -12,6 +17,11 @@ import 'package:orbit_app/features/tasks/presentation/pages/tasks_page.dart';
 import 'package:orbit_app/features/utilities/presentation/pages/utilities_page.dart';
 import 'package:orbit_app/features/secrets/presentation/pages/secrets_page.dart';
 import 'package:orbit_app/features/profile/presentation/pages/profile_page.dart';
+import 'package:orbit_app/features/github/presentation/pages/github_page.dart';
+import 'package:orbit_app/features/vercel/presentation/pages/vercel_page.dart';
+import 'package:orbit_app/features/learning/presentation/pages/learning_path_page.dart';
+import 'package:orbit_app/features/learning/presentation/pages/learning_detail_page.dart';
+import 'package:orbit_app/features/time_tracking/presentation/pages/time_tracking_page.dart';
 
 abstract class AppRoutes {
   static const String splash = '/';
@@ -25,12 +35,46 @@ abstract class AppRoutes {
   static const String noteDetail = '/notes/detail';
   static const String utilities = '/utilities';
   static const String secrets = '/profile/secrets'; // Moved under profile
+  static const String github = '/profile/github';
+  static const String vercel = '/profile/vercel';
+  static const String learning = '/profile/learning';
+  static const String learningDetail = '/profile/learning/detail';
+  static const String timeTracking = '/profile/time-tracking';
   static const String profile = '/profile';
 }
 
-final GoRouter appRouter = GoRouter(
+/// Builds the app router bound to [authCubit].
+///
+/// A redirect guard keeps unauthenticated users out of the app shell and sends
+/// authenticated users straight to the dashboard. [refreshListenable] re-runs
+/// the guard whenever the session changes (password login, Google OAuth return,
+/// or sign-out).
+GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
   initialLocation: AppRoutes.splash,
   debugLogDiagnostics: true,
+  refreshListenable: _GoRouterRefreshStream(authCubit.stream),
+  redirect: (context, state) {
+    final status = authCubit.state.status;
+    final location = state.matchedLocation;
+    final isLogin = location == AppRoutes.login;
+    final isSplash = location == AppRoutes.splash;
+
+    // The splash screen drives its own exit once the session resolves.
+    if (isSplash) return null;
+
+    if (status == AuthStatus.authenticated) {
+      // Signed in: keep them out of the login page.
+      return isLogin ? AppRoutes.dashboard : null;
+    }
+
+    if (status == AuthStatus.unauthenticated) {
+      // Signed out: only the login page is reachable.
+      return isLogin ? null : AppRoutes.login;
+    }
+
+    // Session still unknown — hold on the splash screen.
+    return AppRoutes.splash;
+  },
   routes: [
     GoRoute(
       path: AppRoutes.splash,
@@ -126,6 +170,33 @@ final GoRouter appRouter = GoRouter(
                   name: 'utilities',
                   builder: (context, state) => const UtilitiesPage(),
                 ),
+                GoRoute(
+                  path: 'time-tracking',
+                  name: 'timeTracking',
+                  builder: (context, state) => const TimeTrackingPage(),
+                ),
+                GoRoute(
+                  path: 'github',
+                  name: 'github',
+                  builder: (context, state) => const GithubPage(),
+                ),
+                GoRoute(
+                  path: 'vercel',
+                  name: 'vercel',
+                  builder: (context, state) => const VercelPage(),
+                ),
+                GoRoute(
+                  path: 'learning',
+                  name: 'learning',
+                  builder: (context, state) => const LearningPathPage(),
+                  routes: [
+                    GoRoute(
+                      path: 'detail',
+                      name: 'learningDetail',
+                      builder: (context, state) => const LearningDetailPage(),
+                    ),
+                  ],
+                ),
               ],
             ),
           ],
@@ -134,3 +205,20 @@ final GoRouter appRouter = GoRouter(
     ),
   ],
 );
+
+/// Adapts a [Stream] (the auth cubit's state stream) into a [Listenable] so
+/// `GoRouter.refreshListenable` re-evaluates the redirect on every emission.
+class _GoRouterRefreshStream extends ChangeNotifier {
+  _GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}

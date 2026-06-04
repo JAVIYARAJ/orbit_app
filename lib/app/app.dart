@@ -1,18 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:orbit_app/app/theme/app_colors.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:orbit_app/app/di/injection.dart';
 import 'package:orbit_app/app/router/app_router.dart';
+import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
+import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
 
-class OrbitApp extends StatelessWidget {
+class OrbitApp extends StatefulWidget {
   const OrbitApp({super.key});
 
   @override
+  State<OrbitApp> createState() => _OrbitAppState();
+}
+
+class _OrbitAppState extends State<OrbitApp> {
+  late final AuthCubit _authCubit = sl<AuthCubit>();
+  late final GoRouter _router = buildAppRouter(_authCubit);
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Orbit',
-      debugShowCheckedModeBanner: false,
-      routerConfig: appRouter,
-      theme: ThemeData(
+    return BlocProvider.value(
+      value: _authCubit,
+      child: MaterialApp.router(
+        title: 'Orbit',
+        debugShowCheckedModeBanner: false,
+        routerConfig: _router,
+        theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.background,
         colorScheme: const ColorScheme.dark(
@@ -30,7 +44,8 @@ class OrbitApp extends StatelessWidget {
             focus.unfocus();
           }
         },
-        child: child,
+          child: child,
+        ),
       ),
     );
   }

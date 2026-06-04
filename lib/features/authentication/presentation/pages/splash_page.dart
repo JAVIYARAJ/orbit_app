@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:orbit_app/app/theme/app_colors.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:orbit_app/app/router/app_router.dart';
+import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
+import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
+import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
 
 /// Splash screen — pixel-faithful Flutter port of the Orbit React design.
 class SplashPage extends StatefulWidget {
@@ -35,9 +39,29 @@ class _SplashPageState extends State<SplashPage>
 
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 2600), () {
-      if (mounted) context.go('/login');
-    });
+    _decideNavigation();
+  }
+
+  /// Holds the splash for a minimum display time, waits for the session to
+  /// resolve, then routes to the dashboard (signed in) or login (signed out).
+  Future<void> _decideNavigation() async {
+    await Future<void>.delayed(const Duration(milliseconds: 2600));
+    if (!mounted) return;
+
+    final cubit = context.read<AuthCubit>();
+    var status = cubit.state.status;
+    if (status == AuthStatus.unknown) {
+      final resolved =
+          await cubit.stream.firstWhere((s) => s.status != AuthStatus.unknown);
+      status = resolved.status;
+    }
+    if (!mounted) return;
+
+    context.go(
+      status == AuthStatus.authenticated
+          ? AppRoutes.dashboard
+          : AppRoutes.login,
+    );
   }
 
   @override
