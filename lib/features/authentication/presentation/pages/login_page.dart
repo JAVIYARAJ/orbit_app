@@ -88,14 +88,21 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 48),
 
                   // ── Title block ─────────────────────────────────────────
-                  const Text(
-                    'Welcome back',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      height: 1.2,
+                  ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [AppColors.white, AppColors.neutral300],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ).createShader(bounds),
+                    child: const Text(
+                      'Welcome back',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        height: 1.2,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -158,14 +165,26 @@ class _LogoHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // 28 px circular border container (size-7 / border-1)
+        // 32 px circular border container with glow
         Container(
-          width: 28,
-          height: 28,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [AppColors.surfaceRaised, AppColors.background],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: kOrbitIndigo.withValues(alpha: 0.20),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
             border: Border.all(
-              color: kOrbitIndigo.withValues(alpha: 0.30),
+              color: kOrbitIndigo.withValues(alpha: 0.40),
               width: 1.5,
             ),
           ),
@@ -213,9 +232,21 @@ class _FormCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: AppColors.surfaceRaised.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16), // rounded-2xl
-        border: Border.all(color: AppColors.borderFaint),
+        border: Border.all(color: AppColors.borderFaint.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: kOrbitIndigo.withValues(alpha: 0.03),
+            blurRadius: 40,
+            spreadRadius: -5,
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -294,14 +325,40 @@ class _FormCard extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Sign In button
-          SizedBox(
+          Container(
             width: double.infinity,
-            height: 40,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: busy
+                    ? [
+                        kOrbitIndigo.withValues(alpha: 0.5),
+                        kOrbitIndigo.withValues(alpha: 0.5),
+                      ]
+                    : [
+                        kOrbitIndigo,
+                        const Color(0xFF4338CA), // indigo-700
+                      ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: busy
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: kOrbitIndigo.withValues(alpha: 0.3),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+            ),
             child: ElevatedButton(
               onPressed: busy ? null : onSubmit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: kOrbitIndigo,
-                disabledBackgroundColor: kOrbitIndigo.withValues(alpha: 0.5),
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                disabledBackgroundColor: Colors.transparent,
                 foregroundColor: AppColors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -322,6 +379,7 @@ class _FormCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
                         color: AppColors.white,
                       ),
                     ),
@@ -547,9 +605,9 @@ class _OutlineButton extends StatelessWidget {
         child: Container(
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.transparent,
+            color: AppColors.surfaceAlt.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderFaint),
+            border: Border.all(color: AppColors.borderFaint.withValues(alpha: 0.5)),
           ),
           child: child,
         ),

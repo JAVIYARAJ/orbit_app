@@ -11,42 +11,155 @@ class ProfilePage extends StatelessWidget {
   /// auth guard sends the user back to the login screen automatically.
   Future<void> _confirmAndSignOut(BuildContext context) async {
     final cubit = context.read<AuthCubit>();
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showGeneralDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surfaceAlt,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.chip),
-        ),
-        title: const Text(
-          'Sign out?',
-          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w700),
-        ),
-        content: const Text(
-          'You will be signed out on this device only. Your other devices and '
-          'the web app stay signed in.',
-          style: TextStyle(color: AppColors.neutral400, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.neutral300),
-            ),
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      transitionDuration: const Duration(milliseconds: 300),
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+        );
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(curve),
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
           ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text(
-              'Sign Out',
-              style: TextStyle(
-                color: AppColors.rose600,
-                fontWeight: FontWeight.w600,
+        );
+      },
+      pageBuilder: (dialogContext, animation, secondaryAnimation) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.chip),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.rose600.withValues(alpha: 0.15),
+                blurRadius: 40,
+                spreadRadius: -10,
               ),
-            ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Glowing Icon
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.rose600.withValues(alpha: 0.1),
+                  border: Border.all(
+                    color: AppColors.rose600.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.rose600.withValues(alpha: 0.2),
+                      blurRadius: 16,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: AppColors.rose400,
+                    size: 28,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              const Text(
+                'Sign Out of Orbit?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Subtitle
+              const Text(
+                'You will be signed out on this device only. Your other devices and the web app will stay signed in.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.neutral400,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: AppColors.chip),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.rose600,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Sign Out',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
 

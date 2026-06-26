@@ -19,21 +19,28 @@ class UtilitiesPage extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'App Drawer',
-                        style: TextStyle(
-                          color: AppColors.neutral50,
-                          fontSize: 28, // text-3xl roughly
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          height: 1.2,
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [AppColors.white, AppColors.neutral300],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Text(
+                          'App Drawer',
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
+                            height: 1.2,
+                          ),
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
+                      const SizedBox(height: 4),
+                      const Text(
                         'All your Orbit modules',
                         style: TextStyle(
                           color: AppColors.neutral400,
@@ -43,17 +50,24 @@ class UtilitiesPage extends StatelessWidget {
                     ],
                   ),
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.surfaceAlt,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.chip),
+                      border: Border.all(color: AppColors.chip.withValues(alpha: 0.5)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.neutral400,
-                      size: 16,
+                      Icons.settings_outlined,
+                      color: AppColors.neutral300,
+                      size: 18,
                     ),
                   ),
                 ],
@@ -67,9 +81,16 @@ class UtilitiesPage extends StatelessWidget {
                 height: 48,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: AppColors.background.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.chip),
+                  border: Border.all(color: AppColors.chip.withValues(alpha: 0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Row(
                   children: [
@@ -299,23 +320,39 @@ class _ModuleItem extends StatelessWidget {
         children: [
           // Icon Box
           Container(
-            width: 64, // size-16
+            width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16), // rounded-2xl
-              // For dashed border, we'd normally use a custom painter, but for simplicity,
-              // a regular border is used unless we want to bring in a dependency.
-              // Flutter doesn't have a built in dashed border, so I'll just use a solid one
-              // or a slightly different style for now.
-              border: Border.all(
-                color: AppColors.chip,
-                width: 1,
-                style: BorderStyle.solid,
+              gradient: LinearGradient(
+                colors: isDashed 
+                    ? [AppColors.surfaceAlt.withValues(alpha: 0.5), AppColors.surfaceAlt.withValues(alpha: 0.2)]
+                    : [AppColors.surface, AppColors.surfaceAlt],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDashed ? AppColors.chip.withValues(alpha: 0.3) : AppColors.chip.withValues(alpha: 0.8),
+                width: 1,
+              ),
+              boxShadow: isDashed
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.2),
+                        blurRadius: 16,
+                        spreadRadius: -2,
+                        offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
             child: Center(
-              child: Icon(icon, color: color, size: 24), // size-6
+              child: Icon(icon, color: color, size: 26),
             ),
           ),
           const SizedBox(height: 8),
@@ -324,9 +361,10 @@ class _ModuleItem extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isDashed ? AppColors.neutral400 : AppColors.neutral50,
+              color: isDashed ? AppColors.neutral500 : AppColors.neutral200,
               fontSize: 12, // text-xs
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2,
             ),
           ),
         ],
