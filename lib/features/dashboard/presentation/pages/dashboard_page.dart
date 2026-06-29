@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
+import 'package:go_router/go_router.dart';
+import 'package:orbit_app/app/router/app_router.dart';
 
 /// Home / Dashboard screen.
 class DashboardPage extends StatelessWidget {
@@ -65,40 +67,64 @@ class _TopBar extends StatelessWidget {
           const Spacer(),
 
           // ── Bell button ───────────────────────────────────────────────────
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surface,
-                  border: Border.all(color: AppColors.borderNeutral),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.notifications_none_rounded,
-                    size: 16,
-                    color: AppColors.neutral400,
-                  ),
-                ),
-              ),
-              // Red notification dot
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  width: 8,
-                  height: 8,
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.notifications),
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.rose,
-                    border: Border.all(color: AppColors.background, width: 1.5),
+                    gradient: const LinearGradient(
+                      colors: [AppColors.surfaceAlt, AppColors.surface],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: AppColors.neutral500.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.notifications_rounded,
+                      size: 18,
+                      color: AppColors.neutral200,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                // Red notification dot
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.rose,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.rose.withValues(alpha: 0.6),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(width: 12),

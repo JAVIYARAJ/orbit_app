@@ -6,6 +6,7 @@ import 'package:orbit_app/app/router/app_router.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
 import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 
 class OrbitApp extends StatefulWidget {
   const OrbitApp({super.key});
@@ -20,8 +21,11 @@ class _OrbitAppState extends State<OrbitApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: _authCubit,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: _authCubit),
+        BlocProvider.value(value: sl<WorkspaceCubit>()),
+      ],
       child: MaterialApp.router(
         title: 'Orbit',
         debugShowCheckedModeBanner: false,

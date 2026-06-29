@@ -1,0 +1,61 @@
+import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
+
+class TaskModel extends TaskEntity {
+  const TaskModel({
+    required super.id,
+    required super.title,
+    super.tagIds = const [],
+    required super.taskId,
+    required super.userId,
+    super.dueDate,
+    super.ghBranch,
+    required super.statusId,
+    super.subsDone = 0,
+    super.createdAt,
+    super.createdBy,
+    super.deletedAt,
+    super.deletedBy,
+    super.subsTotal = 0,
+    super.updatedAt,
+    super.updatedBy,
+    super.assigneeId,
+    super.description,
+    super.estMinutes = 0,
+    super.priorityId,
+    required super.reporterId,
+    super.loggedMinutes = 0,
+    super.parentTaskId,
+    required super.workstationId,
+    super.projectShortId,
+  });
+
+  factory TaskModel.fromJson(Map<String, dynamic> json) {
+    return TaskModel(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      tagIds: (json['tag_ids'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      taskId: json['task_id'] as String,
+      userId: json['user_id'] as String,
+      dueDate: json['due_date'] != null ? DateTime.tryParse(json['due_date'] as String) : null,
+      ghBranch: json['gh_branch'] as String?,
+      statusId: json['status_id'] as String,
+      subsDone: json['subs_done'] as int? ?? 0,
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+      createdBy: json['created_by'] as String?,
+      deletedAt: json['deleted_at'] != null ? DateTime.tryParse(json['deleted_at'] as String) : null,
+      deletedBy: json['deleted_by'] as String?,
+      subsTotal: json['subs_total'] as int? ?? 0,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'] as String) : null,
+      updatedBy: json['updated_by'] as String?,
+      assigneeId: json['assignee_id'] as String?,
+      description: json['description'] as String?,
+      estMinutes: json['est_minutes'] as int? ?? 0,
+      priorityId: json['priority_id'] as String?,
+      reporterId: json['reporter_id'] as String,
+      loggedMinutes: json['logged_minutes'] as int? ?? 0,
+      parentTaskId: json['parent_task_id'] as String?,
+      workstationId: json['workstation_id'] as String,
+      projectShortId: json['project_short_id'] as String?,
+    );
+  }
+}

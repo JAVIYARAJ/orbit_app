@@ -1,488 +1,831 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:orbit_app/app/di/injection.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
-import 'package:orbit_app/core/widgets/orbit_detail_app_bar.dart';
-import 'package:orbit_app/core/widgets/orbit_square_button.dart';
+import 'package:orbit_app/features/projects/presentation/cubit/project_detail_cubit.dart';
+import 'package:orbit_app/features/projects/presentation/cubit/project_detail_state.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
+import 'package:go_router/go_router.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import 'package:url_launcher/url_launcher_string.dart';
 
 class ProjectDetailPage extends StatelessWidget {
-  const ProjectDetailPage({super.key});
+  const ProjectDetailPage({super.key, required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    final workstationId = context
+        .read<WorkspaceCubit>()
+        .state
+        .selectedWorkstation
+        ?.id;
+    return BlocProvider(
+      create: (context) {
+        final cubit = sl<ProjectDetailCubit>();
+        if (workstationId != null) {
+          cubit.fetchProjectDetail(workstationId, projectId);
+        }
+        return cubit;
+      },
+      child: const _ProjectDetailView(),
+    );
+  }
+}
+
+class _ProjectDetailView extends StatelessWidget {
+  const _ProjectDetailView();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: OrbitDetailAppBar(
-        title: 'Project',
-        actions: [
-          OrbitSquareButton(icon: Icons.more_horiz_rounded, onTap: () {}),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          // ── Header ───────────────────────────────────────────────
-          Padding(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(72),
+        child: SafeArea(
+          child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppColors.indigo400.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(16),
+                Expanded(
+                  child: BlocBuilder<ProjectDetailCubit, ProjectDetailState>(
+                    builder: (context, state) {
+                      final name = state.project?.name ?? 'Loading...';
+                      final shortId = state.project?.shortId ?? '...';
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'WORKSPACE  /  PROJECTS  /  $shortId',
+                            style: const TextStyle(
+                              color: AppColors.neutral500,
+                              fontSize: 10,
+                              letterSpacing: 1.0,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.folder_open_rounded,
-                      color: AppColors.indigo400,
-                      size: 32,
+                ),
+                GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF131313), // dark black
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderCard),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.neutral400,
+                      size: 16,
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Atlas API Gateway',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                height: 1.2,
-                                letterSpacing: -0.5,
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: BlocBuilder<ProjectDetailCubit, ProjectDetailState>(
+        builder: (context, state) {
+          if (state.status == ProjectDetailStatus.initial ||
+              state.status == ProjectDetailStatus.loading) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            );
+          }
+
+          if (state.status == ProjectDetailStatus.failure) {
+            return Center(
+              child: Text(
+                state.errorMessage ?? 'Failed to load project details',
+                style: const TextStyle(color: AppColors.rose500),
+              ),
+            );
+          }
+
+          final project = state.project;
+          if (project == null) return const SizedBox.shrink();
+
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  children: [
+                    // Divider
+                    Container(height: 1, color: AppColors.borderCard),
+                    const SizedBox(height: 24),
+
+                    // Status & Client
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF003366,
+                            ).withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF0055AA)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00B4D8),
+                                  shape: BoxShape.circle,
+                                ),
                               ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'IN PROGRESS',
+                                style: TextStyle(
+                                  color: Color(0xFF00B4D8),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            project.client ?? 'Unknown',
+                            style: const TextStyle(
+                              color: AppColors.neutral400,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Description
+                    const Text(
+                      'DESCRIPTION',
+                      style: TextStyle(
+                        color: AppColors.neutral500,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      project.description ?? 'No description provided.',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Client & Logged Hours
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'CLIENT / OWNER',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                project.client ?? 'Unknown',
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'TIME LOGGED',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${project.hoursLogged}h',
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Start Date & End Date
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'START DATE',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                project.startDate != null
+                                    ? project.startDate!
+                                          .toIso8601String()
+                                          .split('T')[0]
+                                    : '—',
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'END DATE',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                project.endDate != null
+                                    ? project.endDate!.toIso8601String().split(
+                                        'T',
+                                      )[0]
+                                    : '—',
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Budget & Repo
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'BUDGET',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                project.budget ?? '—',
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 14,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'REPOSITORY',
+                                style: TextStyle(
+                                  color: AppColors.neutral500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (project.repo != null && project.repo!.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () {
+                                    launchUrlString(project.repo!);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF131313),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: AppColors.borderCard),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.code, color: AppColors.white, size: 14),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            project.repo!.replaceAll('https://github.com/', ''),
+                                            style: const TextStyle(
+                                              color: AppColors.white,
+                                              fontSize: 12,
+                                              fontFamily: 'monospace',
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              else
+                                const Text(
+                                  '—',
+                                  style: TextStyle(color: AppColors.white),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Last Commit
+                    if (state.githubCommits.isNotEmpty) ...[
+                      const Text(
+                        'LAST COMMIT',
+                        style: TextStyle(
+                          color: AppColors.neutral500,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131313),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.borderCard),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF0066CC,
+                                    ).withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    (state.githubCommits.first['sha'] as String)
+                                        .substring(0, 7),
+                                    style: const TextStyle(
+                                      color: Color(0xFF4DB8FF),
+                                      fontSize: 12,
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  timeago.format(
+                                    DateTime.parse(
+                                      state
+                                          .githubCommits
+                                          .first['commit']['author']['date'],
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: AppColors.neutral500,
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              (state.githubCommits.first['commit']['message']
+                                      as String)
+                                  .split('\n')[0],
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                if (state.githubCommits.first['author'] !=
+                                        null &&
+                                    state
+                                            .githubCommits
+                                            .first['author']['avatar_url'] !=
+                                        null)
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      image: DecorationImage(
+                                        image: NetworkImage(
+                                          state
+                                              .githubCommits
+                                              .first['author']['avatar_url'],
+                                        ),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.person,
+                                    size: 16,
+                                    color: AppColors.neutral500,
+                                  ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  state
+                                      .githubCommits
+                                      .first['commit']['author']['name'],
+                                  style: const TextStyle(
+                                    color: AppColors.neutral500,
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Tech Stack
+                    if (project.stack.isNotEmpty) ...[
+                      const Text(
+                        'TECH STACK',
+                        style: TextStyle(
+                          color: AppColors.neutral500,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: project.stack
+                            .map(
+                              (t) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppColors.borderCard,
+                                  ),
+                                ),
+                                child: Text(
+                                  t,
+                                  style: const TextStyle(
+                                    color: AppColors.neutral400,
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Tasks
+                    const Text(
+                      'TASKS',
+                      style: TextStyle(
+                        color: AppColors.neutral500,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${project.tasksCount} total · ${project.openTasks} open · ${project.tasksCount - project.openTasks} done',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 14,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Hours Logged
+                    const Text(
+                      'HOURS',
+                      style: TextStyle(
+                        color: AppColors.neutral500,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Text(
+                          'LOGGED ',
+                          style: TextStyle(
+                            color: AppColors.neutral500,
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        Text(
+                          '${project.hoursLogged}h',
+                          style: const TextStyle(
+                            color: AppColors.neutral400,
+                            fontSize: 14,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Delete Project Zone
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceAlt.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.rose500.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Delete this project',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'This project and all its tasks will be soft-deleted and hidden from your workspace. No data is permanently removed.',
+                            style: TextStyle(
+                              color: AppColors.neutral400,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: AppColors.indigo400.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(999),
+                              color: const Color(0xFF1F1209), // Dark amber tint
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF4D3800)),
                             ),
-                            child: const Text(
-                              'Active',
-                              style: TextStyle(
-                                color: AppColors.indigo400,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.warning_amber_rounded, color: AppColors.amber, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${project.openTasks} open tasks will be soft-deleted along with this project',
+                                        style: const TextStyle(color: AppColors.amber, fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.warning_amber_rounded, color: AppColors.amber, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${project.tasksCount - project.openTasks} completed tasks will be soft-deleted along with this project',
+                                        style: const TextStyle(color: AppColors.amber, fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF131313),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.borderCard),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral600, size: 20),
+                                const SizedBox(width: 12),
+                                const Icon(Icons.code, color: AppColors.neutral400, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Also delete GitHub repository',
+                                        style: TextStyle(color: AppColors.neutral400, fontSize: 12),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (project.repo != null && project.repo!.isNotEmpty)
+                                        Text(
+                                          project.repo!.replaceAll('https://github.com/', ''),
+                                          style: const TextStyle(color: AppColors.neutral500, fontSize: 10, fontFamily: 'monospace'),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEF4444),
+                                foregroundColor: AppColors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
+                              onPressed: () {},
+                              child: const Text('Delete project', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Central API gateway · 12 members',
-                        style: TextStyle(
-                          color: AppColors.neutral400,
-                          fontSize: 14,
-                          height: 1.4,
+                    ),
+                  ],
+                ),
+              ),
+              // Bottom Bar
+              Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.borderCard)),
+                ),
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 16,
+                  bottom: MediaQuery.of(context).padding.bottom + 16,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => context.pop(),
+                        child: const Text(
+                          'Close',
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Stats Row ────────────────────────────────────────────
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 112,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              children: const [
-                _StatCard(
-                  icon: Icons.checklist_rtl_rounded,
-                  value: '24',
-                  label: 'Tasks',
-                  color: AppColors.indigo400,
-                ),
-                SizedBox(width: 12),
-                _StatCard(
-                  icon: Icons.check_circle_outline_rounded,
-                  value: '18',
-                  label: 'Completed',
-                  color: AppColors.emerald400,
-                ),
-                SizedBox(width: 12),
-                _StatCard(
-                  icon: Icons.access_time_rounded,
-                  value: '4',
-                  label: 'In Progress',
-                  color: AppColors.amber400,
-                ),
-                SizedBox(width: 12),
-                _StatCard(
-                  icon: Icons.error_outline_rounded,
-                  value: '2',
-                  label: 'Overdue',
-                  color: AppColors.rose400,
-                ),
-              ],
-            ),
-          ),
-
-          // ── Description ──────────────────────────────────────────
-          const SizedBox(height: 32),
-          const _SectionTitle('Description'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.borderCard),
-              ),
-              child: const Text(
-                'Central API gateway handling routing, authentication middleware, and rate limiting across all Orbit microservices. Built with TypeScript and deployed on the self-hosted infrastructure.',
-                style: TextStyle(
-                  color: AppColors.neutral300,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ),
-
-          // ── Progress ─────────────────────────────────────────────
-          const SizedBox(height: 32),
-          const _SectionTitle('Progress'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '75% complete',
-                      style: TextStyle(
-                        color: AppColors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
                     ),
-                    Text(
-                      '18 of 24 tasks done',
-                      style: TextStyle(
-                        color: AppColors.neutral400,
-                        fontSize: 14,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0099FF),
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {},
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.edit_outlined, size: 16),
+                            SizedBox(width: 8),
+                            Text(
+                              'Edit project',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 8,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.neutral700,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: 0.75,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.indigo500, // bg-indigo-500
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Team ─────────────────────────────────────────────────
-          const SizedBox(height: 32),
-          const _SectionTitle('Team'),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                _TeamAvatar(label: 'AL', color: AppColors.indigo400),
-                SizedBox(width: 8),
-                _TeamAvatar(label: 'MK', color: AppColors.amber400),
-                SizedBox(width: 8),
-                _TeamAvatar(label: 'JD', color: AppColors.emerald400),
-                SizedBox(width: 8),
-                _TeamAvatar(label: 'RP', color: AppColors.rose400),
-                SizedBox(width: 8),
-                _TeamAvatar(label: 'ST', color: AppColors.cyan),
-                SizedBox(width: 12),
-                Text(
-                  '+7 more',
-                  style: TextStyle(color: AppColors.neutral400, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Recent Tasks ─────────────────────────────────────────
-          const SizedBox(height: 32),
-          const _SectionTitle('Recent Tasks'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const _TaskItem(
-                  title: 'Implement OAuth token refresh',
-                  assignee: 'Alex Lambert',
-                  priority: 'Low',
-                  priorityColor: AppColors.emerald400,
-                  isCompleted: true,
-                ),
-                const SizedBox(height: 12),
-                const _TaskItem(
-                  title: 'Add rate limiting middleware',
-                  assignee: 'Maya Kim',
-                  priority: 'High',
-                  priorityColor: AppColors.rose400,
-                  isCompleted: false,
-                ),
-                const SizedBox(height: 12),
-                const _TaskItem(
-                  title: 'Write integration tests',
-                  assignee: 'Jordan Diaz',
-                  priority: 'Medium',
-                  priorityColor: AppColors.amber400,
-                  isCompleted: false,
-                ),
-                const SizedBox(height: 32),
-
-                // View All Button
-                Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.indigo500,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'View All Tasks',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        color: AppColors.white,
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      // Note: If using AppShell for bottom nav, this page may not need its own bottom nav.
-      // Keeping it to match the original implementation if AppShell is not wrapping this branch correctly.
-      // But typically, child pages inside StatefulShellRoute don't need their own bottom nav.
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 112, // w-28 = 112px
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderCard),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 24, right: 24, bottom: 12),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          color: AppColors.neutral400,
-          fontSize: 12,
-          fontFamily: 'monospace',
-          letterSpacing: 2.0, // tracking-widest
-        ),
-      ),
-    );
-  }
-}
-
-class _TeamAvatar extends StatelessWidget {
-  const _TeamAvatar({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        shape: BoxShape.circle,
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskItem extends StatelessWidget {
-  const _TaskItem({
-    required this.title,
-    required this.assignee,
-    required this.priority,
-    required this.priorityColor,
-    required this.isCompleted,
-  });
-
-  final String title;
-  final String assignee;
-  final String priority;
-  final Color priorityColor;
-  final bool isCompleted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderCard),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isCompleted
-                ? Icons.check_box_rounded
-                : Icons.check_box_outline_blank_rounded,
-            color: isCompleted ? AppColors.emerald400 : AppColors.neutral600,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  assignee,
-                  style: const TextStyle(
-                    color: AppColors.neutral400,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: priorityColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              priority,
-              style: TextStyle(
-                color: priorityColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

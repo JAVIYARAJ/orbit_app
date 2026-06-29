@@ -59,7 +59,7 @@ class _SplashPageState extends State<SplashPage>
 
     context.go(
       status == AuthStatus.authenticated
-          ? AppRoutes.dashboard
+          ? AppRoutes.selectWorkspace
           : AppRoutes.login,
     );
   }

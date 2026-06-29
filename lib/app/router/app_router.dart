@@ -22,10 +22,13 @@ import 'package:orbit_app/features/vercel/presentation/pages/vercel_page.dart';
 import 'package:orbit_app/features/learning/presentation/pages/learning_path_page.dart';
 import 'package:orbit_app/features/learning/presentation/pages/learning_detail_page.dart';
 import 'package:orbit_app/features/time_tracking/presentation/pages/time_tracking_page.dart';
+import 'package:orbit_app/features/workspaces/presentation/pages/workspace_selection_page.dart';
+import 'package:orbit_app/features/notifications/presentation/pages/notifications_page.dart';
 
 abstract class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
+  static const String selectWorkspace = '/select-workspace';
   static const String dashboard = '/dashboard';
   static const String projects = '/projects';
   static const String projectDetail = '/projects/detail';
@@ -41,6 +44,7 @@ abstract class AppRoutes {
   static const String learningDetail = '/profile/learning/detail';
   static const String timeTracking = '/profile/time-tracking';
   static const String profile = '/profile';
+  static const String notifications = '/notifications';
 }
 
 /// Builds the app router bound to [authCubit].
@@ -64,7 +68,7 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
 
     if (status == AuthStatus.authenticated) {
       // Signed in: keep them out of the login page.
-      return isLogin ? AppRoutes.dashboard : null;
+      return isLogin ? AppRoutes.selectWorkspace : null;
     }
 
     if (status == AuthStatus.unauthenticated) {
@@ -85,6 +89,16 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
       path: AppRoutes.login,
       name: 'login',
       builder: (context, state) => const LoginPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.selectWorkspace,
+      name: 'selectWorkspace',
+      builder: (context, state) => const WorkspaceSelectionPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.notifications,
+      name: 'notifications',
+      builder: (context, state) => const NotificationsPage(),
     ),
 
     // Persistent bottom-nav shell — the nav bar stays mounted while only the
@@ -112,9 +126,11 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
                 // Pushed within the Projects branch so the shell's bottom nav
                 // stays visible and `context.pop()` returns to the list.
                 GoRoute(
-                  path: 'detail',
+                  path: 'detail/:id',
                   name: 'projectDetail',
-                  builder: (context, state) => const ProjectDetailPage(),
+                  builder: (context, state) => ProjectDetailPage(
+                    projectId: state.pathParameters['id']!,
+                  ),
                 ),
               ],
             ),
