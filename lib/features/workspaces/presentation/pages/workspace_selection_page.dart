@@ -6,6 +6,7 @@ import 'package:orbit_app/core/widgets/orbit_icon.dart';
 import 'package:orbit_app/features/workspaces/domain/entities/workstation_entity.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
+import 'package:orbit_app/features/workspaces/presentation/widgets/create_workspace_sheet.dart';
 
 class WorkspaceSelectionPage extends StatefulWidget {
   const WorkspaceSelectionPage({super.key});
@@ -48,8 +49,14 @@ class _WorkspaceSelectionPageState extends State<WorkspaceSelectionPage> {
           ),
           
           SafeArea(
-            child: BlocBuilder<WorkspaceCubit, WorkspaceState>(
-              builder: (context, state) {
+            child: BlocListener<WorkspaceCubit, WorkspaceState>(
+              listener: (context, state) {
+                if (state.status == WorkspaceStatus.loaded && state.contextEntity?.activeWorkstationId != null) {
+                  context.go('/dashboard');
+                }
+              },
+              child: BlocBuilder<WorkspaceCubit, WorkspaceState>(
+                builder: (context, state) {
                 if (state.status == WorkspaceStatus.loading) {
                   return const Center(child: CircularProgressIndicator(color: kOrbitIndigo));
                 }
@@ -83,9 +90,9 @@ class _WorkspaceSelectionPageState extends State<WorkspaceSelectionPage> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ).createShader(bounds),
-                            child: const Text(
-                              'Select workspace',
-                              style: TextStyle(
+                            child: Text(
+                              workstations.isEmpty ? 'Get started' : 'Select workspace',
+                              style: const TextStyle(
                                 color: AppColors.white,
                                 fontSize: 32,
                                 fontWeight: FontWeight.w700,
@@ -95,44 +102,97 @@ class _WorkspaceSelectionPageState extends State<WorkspaceSelectionPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Choose a workspace to continue with Orbit',
-                            style: TextStyle(
+                          Text(
+                            workstations.isEmpty 
+                                ? 'Create your first workspace to begin using Orbit'
+                                : 'Choose a workspace to continue with Orbit',
+                            style: const TextStyle(
                               color: AppColors.neutral400,
                               fontSize: 14,
                               height: 1.4,
                             ),
                           ),
-                          
-                          const SizedBox(height: 40),
-                          
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: workstations.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 16),
-                            itemBuilder: (context, index) {
-                              final ws = workstations[index];
-                              final isSelected = state.selectedWorkstation?.id == ws.id;
-                              final wsColor = _parseColor(ws.color);
+                          const SizedBox(height: 15),
+                          if (workstations.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceAlt.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppColors.borderFaint.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      color: kOrbitIndigo.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.workspaces_outline,
+                                        color: kOrbitIndigo,
+                                        size: 32,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No workspaces found',
+                                    style: TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Create a new workspace to get started.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: AppColors.neutral400,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: workstations.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 16),
+                              itemBuilder: (context, index) {
+                                final ws = workstations[index];
+                                final isSelected = state.selectedWorkstation?.id == ws.id;
+                                final wsColor = _parseColor(ws.color);
 
-                              return _WorkspaceCard(
-                                ws: ws,
-                                isSelected: isSelected,
-                                color: wsColor,
-                                onTap: () {
-                                  context.read<WorkspaceCubit>().selectWorkstation(ws);
-                                  context.go('/dashboard');
-                                },
-                              );
-                            },
-                          ),
+                                return _WorkspaceCard(
+                                  ws: ws,
+                                  isSelected: isSelected,
+                                  color: wsColor,
+                                  onTap: () {
+                                    context.read<WorkspaceCubit>().selectWorkstation(ws);
+                                    context.go('/dashboard');
+                                  },
+                                );
+                              },
+                            ),
                           
                           const SizedBox(height: 24),
                           
                           // Create new workspace button
                           GestureDetector(
-                            onTap: () {},
+                            onTap: () => CreateWorkspaceSheet.show(
+                              context,
+                              onSuccess: () => context.go('/dashboard'),
+                            ),
                             child: Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(vertical: 20),
@@ -166,6 +226,7 @@ class _WorkspaceSelectionPageState extends State<WorkspaceSelectionPage> {
                   ),
                 );
               },
+            ),
             ),
           ),
         ],
@@ -251,13 +312,17 @@ class _WorkspaceCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        ws.name,
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.3,
+                      Flexible(
+                        child: Text(
+                          ws.name,
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),

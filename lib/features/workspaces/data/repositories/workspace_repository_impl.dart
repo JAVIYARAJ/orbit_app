@@ -22,4 +22,28 @@ class WorkspaceRepositoryImpl implements WorkspaceRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, void>> createWorkstation(String name, String color) async {
+    try {
+      await _remoteDataSource.createWorkstation(name, color);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> switchActiveWorkstation(String workstationId) async {
+    try {
+      await _remoteDataSource.switchActiveWorkstation(workstationId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }

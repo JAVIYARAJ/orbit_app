@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
-import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -356,13 +358,15 @@ class _ProfileHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthCubit, AuthState>(
+    return BlocBuilder<WorkspaceCubit, WorkspaceState>(
       builder: (context, state) {
-        final user = state.user;
-        final name = (user?.name?.trim().isNotEmpty ?? false)
-            ? user!.name!.trim()
-            : (user?.email.split('@').first ?? 'Orbit User');
-        final email = user?.email ?? '';
+        final user = state.contextEntity?.user;
+        if (user == null) return const SizedBox.shrink();
+        
+        final name = (user.name?.trim().isNotEmpty ?? false)
+            ? user.name!.trim()
+            : (user.email.split('@').first);
+        final email = user.email;
         final handle =
             email.contains('@') ? '@${email.split('@').first}' : '@orbit';
 
@@ -378,20 +382,28 @@ class _ProfileHeaderCard extends StatelessWidget {
               Container(
                 width: 72,
                 height: 72,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.indigo500,
                   shape: BoxShape.circle,
+                  image: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                      ? DecorationImage(
+                          image: CachedNetworkImageProvider(user.avatarUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                child: Center(
-                  child: Text(
-                    user?.avatarInitial ?? '?',
-                    style: const TextStyle(
-                      color: AppColors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+                child: user.avatarUrl == null || user.avatarUrl!.isEmpty
+                    ? Center(
+                        child: Text(
+                          user.avatarInitial,
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(height: 16),
               Text(

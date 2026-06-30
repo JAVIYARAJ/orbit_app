@@ -7,6 +7,7 @@ import 'package:orbit_app/features/notifications/presentation/bloc/notifications
 import 'package:orbit_app/app/di/injection.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:cached_network_image/cached_network_image.dart';
 
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
@@ -142,9 +143,20 @@ class _NotificationsViewState extends State<_NotificationsView> {
 
                 final item = notifications[index];
                 
-                final isStale = item.type == 'task_automation';
-                final iconColor = isStale ? const Color(0xFF1E90FF) : AppColors.brand;
-                final iconData = isStale ? Icons.bolt_rounded : Icons.notifications_rounded;
+                Color iconColor = const Color(0xFF0099FF);
+                IconData iconData;
+                bool showIconOnly = false;
+                
+                if (item.type == 'task_automation' || item.type == 'stale') {
+                  iconData = Icons.bolt_rounded;
+                  showIconOnly = true;
+                } else if (item.type == 'integration_reconnect_needed' || item.type == 'integration' || item.type == 'error' || item.title.contains('Calendar')) {
+                  iconData = Icons.error_outline_rounded;
+                  showIconOnly = true;
+                } else {
+                  iconData = Icons.notifications_rounded;
+                  iconColor = AppColors.brand;
+                }
                 
                 return Container(
                   decoration: BoxDecoration(
@@ -180,7 +192,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
                             height: 42,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: item.actorAvatarUrl == null ? LinearGradient(
+                              gradient: (item.actorAvatarUrl == null || showIconOnly) ? LinearGradient(
                                 colors: [
                                   iconColor.withValues(alpha: 0.8),
                                   iconColor,
@@ -188,19 +200,19 @@ class _NotificationsViewState extends State<_NotificationsView> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ) : null,
-                              image: item.actorAvatarUrl != null
+                              image: (item.actorAvatarUrl != null && !showIconOnly)
                                   ? DecorationImage(
-                                      image: NetworkImage(item.actorAvatarUrl!),
+                                      image: CachedNetworkImageProvider(item.actorAvatarUrl!),
                                       fit: BoxFit.cover,
                                     )
                                   : null,
                               border: Border.all(
-                                color: item.actorAvatarUrl != null 
+                                color: (item.actorAvatarUrl != null && !showIconOnly) 
                                     ? AppColors.borderNeutral 
                                     : Colors.transparent,
                               ),
                             ),
-                            child: item.actorAvatarUrl == null
+                            child: (item.actorAvatarUrl == null || showIconOnly)
                                 ? Icon(iconData, color: AppColors.white, size: 20)
                                 : null,
                           ),

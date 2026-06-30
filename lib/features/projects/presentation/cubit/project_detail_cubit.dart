@@ -35,6 +35,7 @@ class ProjectDetailCubit extends Cubit<ProjectDetailState> {
   
   Future<void> _fetchGithubData(String workstationId, String repoUrl) async {
     try {
+      emit(state.copyWith(isGithubLoading: true));
       // Parse owner and repo from URL (e.g. https://github.com/JAVIYARAJ/orbit)
       final uri = Uri.parse(repoUrl);
       final pathSegments = uri.pathSegments;
@@ -54,10 +55,14 @@ class ProjectDetailCubit extends Cubit<ProjectDetailState> {
         emit(state.copyWith(
           githubUser: user,
           githubCommits: commits,
+          isGithubLoading: false,
         ));
+      } else {
+        emit(state.copyWith(isGithubLoading: false));
       }
     } catch (e) {
       print('Github fetch error: $e');
+      emit(state.copyWith(isGithubLoading: false));
     }
   }
 }

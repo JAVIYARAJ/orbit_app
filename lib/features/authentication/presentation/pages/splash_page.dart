@@ -6,6 +6,7 @@ import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
 import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.dart';
 import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 
 /// Splash screen — pixel-faithful Flutter port of the Orbit React design.
 class SplashPage extends StatefulWidget {
@@ -56,6 +57,16 @@ class _SplashPageState extends State<SplashPage>
       status = resolved.status;
     }
     if (!mounted) return;
+
+    if (status == AuthStatus.authenticated) {
+      final wsCubit = context.read<WorkspaceCubit>();
+      await wsCubit.fetchContext();
+      if (!mounted) return;
+      if (wsCubit.state.contextEntity?.activeWorkstationId != null) {
+        context.go(AppRoutes.dashboard);
+        return;
+      }
+    }
 
     context.go(
       status == AuthStatus.authenticated

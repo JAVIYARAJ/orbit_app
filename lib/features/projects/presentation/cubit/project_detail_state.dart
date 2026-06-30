@@ -9,6 +9,7 @@ class ProjectDetailState extends Equatable {
     this.project,
     this.githubUser,
     this.githubCommits = const [],
+    this.isGithubLoading = false,
     this.errorMessage,
   });
 
@@ -16,6 +17,7 @@ class ProjectDetailState extends Equatable {
   final ProjectEntity? project;
   final Map<String, dynamic>? githubUser;
   final List<dynamic> githubCommits;
+  final bool isGithubLoading;
   final String? errorMessage;
 
   ProjectDetailState copyWith({
@@ -23,6 +25,7 @@ class ProjectDetailState extends Equatable {
     ProjectEntity? project,
     Map<String, dynamic>? githubUser,
     List<dynamic>? githubCommits,
+    bool? isGithubLoading,
     String? errorMessage,
   }) {
     return ProjectDetailState(
@@ -30,10 +33,11 @@ class ProjectDetailState extends Equatable {
       project: project ?? this.project,
       githubUser: githubUser ?? this.githubUser,
       githubCommits: githubCommits ?? this.githubCommits,
+      isGithubLoading: isGithubLoading ?? this.isGithubLoading,
       errorMessage: errorMessage,
     );
   }
 
   @override
-  List<Object?> get props => [status, project, githubUser, githubCommits, errorMessage];
+  List<Object?> get props => [status, project, githubUser, githubCommits, isGithubLoading, errorMessage];
 }

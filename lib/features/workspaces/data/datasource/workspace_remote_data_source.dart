@@ -6,6 +6,8 @@ import 'package:orbit_app/features/workspaces/domain/entities/workspace_context_
 
 abstract interface class WorkspaceRemoteDataSource {
   Future<WorkspaceContextEntity> getMyContext();
+  Future<void> createWorkstation(String name, String color);
+  Future<void> switchActiveWorkstation(String workstationId);
 }
 
 class WorkspaceRemoteDataSourceImpl implements WorkspaceRemoteDataSource {
@@ -36,6 +38,29 @@ class WorkspaceRemoteDataSourceImpl implements WorkspaceRemoteDataSource {
         workstations: workstations,
         activeWorkstationId: data['active_workstation_id'] as String?,
       );
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<void> createWorkstation(String name, String color) async {
+    try {
+      await _client.rpc('create_my_workstation', params: {
+        'p_name': name,
+        'p_color': color,
+      });
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<void> switchActiveWorkstation(String workstationId) async {
+    try {
+      await _client.rpc('switch_active_workstation', params: {
+        'p_workstation_id': workstationId,
+      });
     } catch (e) {
       throw ServerException(message: e.toString());
     }

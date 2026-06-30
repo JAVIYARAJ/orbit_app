@@ -8,7 +8,9 @@ import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_event.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:cached_network_image/cached_network_image.dart';
 
 
 class TasksPage extends StatelessWidget {
@@ -25,7 +27,17 @@ class TasksPage extends StatelessWidget {
         }
         return bloc;
       },
-      child: const _TasksView(),
+      child: BlocListener<WorkspaceCubit, WorkspaceState>(
+        listenWhen: (previous, current) => 
+            previous.selectedWorkstation?.id != current.selectedWorkstation?.id,
+        listener: (context, state) {
+          final newWsId = state.selectedWorkstation?.id;
+          if (newWsId != null) {
+            context.read<TasksBloc>().add(FetchTasksEvent(newWsId));
+          }
+        },
+        child: const _TasksView(),
+      ),
     );
   }
 }
@@ -659,7 +671,7 @@ class _FilterSheet extends StatelessWidget {
                                         color: isSelected ? AppColors.brand : AppColors.chip,
                                         image: member.avatarUrl != null
                                             ? DecorationImage(
-                                                image: NetworkImage(member.avatarUrl!),
+                                                image: CachedNetworkImageProvider(member.avatarUrl!),
                                                 fit: BoxFit.cover,
                                               )
                                             : null,

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit_app/core/widgets/orbit_icon.dart';
 import 'package:orbit_app/features/utilities/presentation/pages/utilities_page.dart';
+import 'package:orbit_app/features/workspaces/presentation/widgets/workspace_switcher_sheet.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// Persistent application shell.
 ///
@@ -92,6 +97,8 @@ class _BottomNavBar extends StatelessWidget {
                   item: _navItems[i],
                   isActive: i == currentIndex,
                   onTap: () => onTap(i),
+                  onLongPress: i == 4 ? () => WorkspaceSwitcherSheet.show(context) : null,
+                  isProfile: i == 4,
                 ),
             ],
           ),
@@ -106,25 +113,74 @@ class _NavButton extends StatelessWidget {
     required this.item,
     required this.isActive,
     required this.onTap,
+    this.onLongPress,
+    this.isProfile = false,
   });
 
   final _NavItem item;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool isProfile;
 
   @override
   Widget build(BuildContext context) {
     final color = isActive ? kOrbitIndigo : AppColors.neutral400;
 
+    Widget iconWidget = Icon(item.icon, size: 22, color: color);
+
+    if (isProfile) {
+      iconWidget = BlocBuilder<WorkspaceCubit, WorkspaceState>(
+        builder: (context, state) {
+          final user = state.contextEntity?.user;
+          final avatarUrl = user?.avatarUrl;
+          final initials = user?.avatarInitial ?? '?';
+
+          return Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive ? kOrbitIndigo.withValues(alpha: 0.1) : Colors.transparent,
+              border: Border.all(
+                color: isActive ? kOrbitIndigo : AppColors.neutral500,
+                width: 1.5,
+              ),
+              image: avatarUrl != null && avatarUrl.isNotEmpty
+                  ? DecorationImage(
+                      image: CachedNetworkImageProvider(avatarUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: avatarUrl == null || avatarUrl.isEmpty
+                ? Center(
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        color: isActive ? kOrbitIndigo : AppColors.neutral400,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                      ),
+                    ),
+                  )
+                : null,
+          );
+        },
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(item.icon, size: 22, color: color),
+            iconWidget,
             const SizedBox(height: 4),
             Text(
               item.label,

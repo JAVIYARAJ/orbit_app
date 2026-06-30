@@ -7,6 +7,9 @@ import 'package:orbit_app/features/authentication/presentation/cubit/auth_cubit.
 import 'package:orbit_app/features/authentication/presentation/pages/login_page.dart';
 import 'package:orbit_app/features/authentication/presentation/pages/splash_page.dart';
 import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:orbit_app/app/di/injection.dart';
+import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 import 'package:orbit_app/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/note_detail_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/notes_page.dart';
@@ -112,7 +115,10 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
             GoRoute(
               path: AppRoutes.dashboard,
               name: 'dashboard',
-              builder: (context, state) => const DashboardPage(),
+              builder: (context, state) => BlocProvider(
+                create: (_) => sl<DashboardCubit>(),
+                child: const DashboardPage(),
+              ),
             ),
           ],
         ),

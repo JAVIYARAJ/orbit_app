@@ -53,13 +53,10 @@ class ProjectRemoteDataSourceImpl implements ProjectRemoteDataSource {
         'github-proxy',
         body: {
           'workstation_id': workstationId,
-          'payload': {
-            'path': '/user',
-            'params': {},
-          }
+          'path': '/user',
+          'params': <dynamic, dynamic>{},
         },
       );
-      print('Github proxy user response: ${response.data}');
       if (response.data is Map<String, dynamic>) {
         final data = response.data as Map<String, dynamic>;
         if (data.containsKey('data') && data['data'] is Map<String, dynamic>) {
@@ -80,15 +77,12 @@ class ProjectRemoteDataSourceImpl implements ProjectRemoteDataSource {
         'github-proxy',
         body: {
           'workstation_id': workstationId,
-          'payload': {
-            'path': '/repos/$owner/$repo/commits',
-            'params': {'per_page': 1},
-            'method': 'GET',
-            'body': null,
-          }
+          'path': '/repos/$owner/$repo/commits',
+          'params': {'per_page': 1},
+          'method': 'GET',
+          'body': null,
         },
       );
-      print('Github proxy commits response: ${response.data}');
       if (response.data is Map<String, dynamic>) {
         final data = response.data as Map<String, dynamic>;
         if (data.containsKey('data') && data['data'] is List) {

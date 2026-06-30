@@ -3,4 +3,6 @@ import 'package:orbit_app/features/workspaces/domain/entities/workspace_context_
 
 abstract interface class WorkspaceRepository {
   ResultFuture<WorkspaceContextEntity> getMyContext();
+  ResultFuture<void> createWorkstation(String name, String color);
+  ResultFuture<void> switchActiveWorkstation(String workstationId);
 }

@@ -8,6 +8,7 @@ import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProjectDetailPage extends StatelessWidget {
   const ProjectDetailPage({super.key, required this.projectId});
@@ -376,7 +377,7 @@ class _ProjectDetailView extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              if (project.repo != null && project.repo!.isNotEmpty)
+                              if (project.repo != null && project.repo!.trim().isNotEmpty && !['-', '—', '–'].contains(project.repo!.trim()))
                                 GestureDetector(
                                   onTap: () {
                                     launchUrlString(project.repo!);
@@ -410,8 +411,12 @@ class _ProjectDetailView extends StatelessWidget {
                                 )
                               else
                                 const Text(
-                                  '—',
-                                  style: TextStyle(color: AppColors.white),
+                                  'Not linked',
+                                  style: TextStyle(
+                                    color: AppColors.neutral500,
+                                    fontSize: 13,
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                             ],
                           ),
@@ -421,7 +426,20 @@ class _ProjectDetailView extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Last Commit
-                    if (state.githubCommits.isNotEmpty) ...[
+                    if (state.isGithubLoading) ...[
+                      const Text(
+                        'LAST COMMIT',
+                        style: TextStyle(
+                          color: AppColors.neutral500,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const _GithubLoadingView(),
+                      const SizedBox(height: 24),
+                    ] else if (state.githubCommits.isNotEmpty) ...[
                       const Text(
                         'LAST COMMIT',
                         style: TextStyle(
@@ -471,7 +489,7 @@ class _ProjectDetailView extends StatelessWidget {
                                     DateTime.parse(
                                       state
                                           .githubCommits
-                                          .first['commit']['author']['date'],
+                                          .first['commit']['author']['date'] as String,
                                     ),
                                   ),
                                   style: const TextStyle(
@@ -492,7 +510,7 @@ class _ProjectDetailView extends StatelessWidget {
                                 fontSize: 13,
                                 height: 1.4,
                               ),
-                              maxLines: 1,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 12),
@@ -510,10 +528,10 @@ class _ProjectDetailView extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       image: DecorationImage(
-                                        image: NetworkImage(
+                                        image: CachedNetworkImageProvider(
                                           state
                                               .githubCommits
-                                              .first['author']['avatar_url'],
+                                              .first['author']['avatar_url'] as String,
                                         ),
                                         fit: BoxFit.cover,
                                       ),
@@ -529,7 +547,7 @@ class _ProjectDetailView extends StatelessWidget {
                                 Text(
                                   state
                                       .githubCommits
-                                      .first['commit']['author']['name'],
+                                      .first['commit']['author']['name'] as String,
                                   style: const TextStyle(
                                     color: AppColors.neutral500,
                                     fontSize: 12,
@@ -537,6 +555,72 @@ class _ProjectDetailView extends StatelessWidget {
                                   ),
                                 ),
                               ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ] else ...[
+                      const Text(
+                        'LAST COMMIT',
+                        style: TextStyle(
+                          color: AppColors.neutral500,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131313),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.borderCard),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: AppColors.surfaceAlt,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                (project.repo == null || project.repo!.trim().isEmpty || ['-', '—', '–'].contains(project.repo!.trim()))
+                                    ? Icons.link_off_rounded
+                                    : Icons.history_rounded,
+                                color: AppColors.neutral400,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    (project.repo == null || project.repo!.trim().isEmpty || ['-', '—', '–'].contains(project.repo!.trim()))
+                                        ? 'No Repository Linked'
+                                        : 'No Commits Found',
+                                    style: const TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    (project.repo == null || project.repo!.trim().isEmpty || ['-', '—', '–'].contains(project.repo!.trim()))
+                                        ? 'Add a GitHub repository URL to sync commits.'
+                                        : 'No recent commits could be found.',
+                                    style: const TextStyle(
+                                      color: AppColors.neutral500,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -711,41 +795,42 @@ class _ProjectDetailView extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF131313),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.borderCard),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral600, size: 20),
-                                const SizedBox(width: 12),
-                                const Icon(Icons.code, color: AppColors.neutral400, size: 16),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Also delete GitHub repository',
-                                        style: TextStyle(color: AppColors.neutral400, fontSize: 12),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (project.repo != null && project.repo!.isNotEmpty)
+                          if (project.repo != null && project.repo!.trim().isNotEmpty && !['-', '—', '–'].contains(project.repo!.trim())) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF131313),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.borderCard),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral600, size: 20),
+                                  const SizedBox(width: 12),
+                                  const Icon(Icons.code, color: AppColors.neutral400, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Also delete GitHub repository',
+                                          style: TextStyle(color: AppColors.neutral400, fontSize: 12),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                         Text(
                                           project.repo!.replaceAll('https://github.com/', ''),
                                           style: const TextStyle(color: AppColors.neutral500, fontSize: 10, fontFamily: 'monospace'),
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                           const SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
@@ -826,6 +911,93 @@ class _ProjectDetailView extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _GithubLoadingView extends StatefulWidget {
+  const _GithubLoadingView();
+
+  @override
+  State<_GithubLoadingView> createState() => _GithubLoadingViewState();
+}
+
+class _GithubLoadingViewState extends State<_GithubLoadingView> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    
+    _opacity = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _buildSkeleton(double width, double height, {double borderRadius = 4}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.neutral700,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _opacity,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _opacity.value,
+          child: child,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131313),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderCard),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _buildSkeleton(60, 24, borderRadius: 4),
+                const SizedBox(width: 12),
+                _buildSkeleton(80, 14),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSkeleton(double.infinity, 14),
+            const SizedBox(height: 8),
+            _buildSkeleton(200, 14),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _buildSkeleton(16, 16, borderRadius: 8),
+                const SizedBox(width: 8),
+                _buildSkeleton(100, 14),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

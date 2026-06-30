@@ -42,7 +42,7 @@ abstract final class AppColors {
   static const Color neutral700 = Color(0xFF404040);
 
   // ── Brand / indigo ───────────────────────────────────────────────────────────────
-  static const Color brand = Color(0xFF1F3CE6); // oklch(0.488 0.243 264.376)
+  static const Color brand = Color(0xFF2596BE);
   static const Color brandSoft = Color(
     0xFF6E8BFF,
   ); // lighter indigo (text/tags)

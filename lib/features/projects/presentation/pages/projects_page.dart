@@ -7,6 +7,7 @@ import 'package:orbit_app/features/projects/presentation/cubit/projects_bloc.dar
 import 'package:orbit_app/features/projects/presentation/cubit/projects_event.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/projects_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
+import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class ProjectsPage extends StatelessWidget {
@@ -23,7 +24,17 @@ class ProjectsPage extends StatelessWidget {
         }
         return bloc;
       },
-      child: const _ProjectsView(),
+      child: BlocListener<WorkspaceCubit, WorkspaceState>(
+        listenWhen: (previous, current) => 
+            previous.selectedWorkstation?.id != current.selectedWorkstation?.id,
+        listener: (context, state) {
+          final newWsId = state.selectedWorkstation?.id;
+          if (newWsId != null) {
+            context.read<ProjectsBloc>().add(FetchProjectsEvent(newWsId));
+          }
+        },
+        child: const _ProjectsView(),
+      ),
     );
   }
 }

@@ -12,6 +12,8 @@ import 'package:orbit_app/features/workspaces/data/datasource/workspace_remote_d
 import 'package:orbit_app/features/workspaces/data/repositories/workspace_repository_impl.dart';
 import 'package:orbit_app/features/workspaces/domain/repositories/workspace_repository.dart';
 import 'package:orbit_app/features/workspaces/domain/usecases/get_my_context_use_case.dart';
+import 'package:orbit_app/features/workspaces/domain/usecases/create_workspace_use_case.dart';
+import 'package:orbit_app/features/workspaces/domain/usecases/switch_workspace_use_case.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 import 'package:orbit_app/features/projects/data/datasource/project_remote_data_source.dart';
 import 'package:orbit_app/features/projects/data/repositories/project_repository_impl.dart';
@@ -27,7 +29,11 @@ import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
 import 'package:orbit_app/features/notifications/data/repositories/notifications_repository.dart';
 import 'package:orbit_app/features/notifications/presentation/bloc/notifications_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:orbit_app/features/dashboard/data/datasource/dashboard_remote_data_source.dart';
+import 'package:orbit_app/features/dashboard/data/repositories/dashboard_repository_impl.dart';
+import 'package:orbit_app/features/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:orbit_app/features/dashboard/domain/usecases/get_mobile_dashboard_use_case.dart';
+import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 /// Global service locator.
 final GetIt sl = GetIt.instance;
 
@@ -72,8 +78,14 @@ Future<void> configureDependencies() async {
       () => WorkspaceRepositoryImpl(remoteDataSource: sl()),
     )
     ..registerLazySingleton(() => GetMyContextUseCase(sl()))
+    ..registerLazySingleton(() => CreateWorkspaceUseCase(sl()))
+    ..registerLazySingleton(() => SwitchWorkspaceUseCase(sl()))
     ..registerLazySingleton(
-      () => WorkspaceCubit(getMyContext: sl()),
+      () => WorkspaceCubit(
+        getMyContext: sl(),
+        createWorkspace: sl(),
+        switchWorkspace: sl(),
+      ),
     )
     // ── Projects ───────────────────────────────────────────────────────────
     ..registerFactory<ProjectRemoteDataSource>(
@@ -96,5 +108,14 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => TasksBloc(sl()))
     // ── Notifications ──────────────────────────────────────────────────────
     ..registerFactory(() => NotificationsRepository(sl()))
-    ..registerFactory(() => NotificationsBloc(sl()));
+    ..registerFactory(() => NotificationsBloc(sl()))
+    // ── Dashboard ──────────────────────────────────────────────────────────
+    ..registerFactory<DashboardRemoteDataSource>(
+      () => DashboardRemoteDataSourceImpl(sl()),
+    )
+    ..registerFactory<DashboardRepository>(
+      () => DashboardRepositoryImpl(remoteDataSource: sl()),
+    )
+    ..registerFactory(() => GetMobileDashboardUseCase(sl()))
+    ..registerFactory(() => DashboardCubit(getMobileDashboardUseCase: sl()));
 }
