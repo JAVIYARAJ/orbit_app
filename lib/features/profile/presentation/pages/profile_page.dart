@@ -1,3 +1,4 @@
+import 'package:feature_gate_pro/feature_gate_pro.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
@@ -294,19 +295,24 @@ class ProfilePage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.chip),
               ),
-              child: const Column(
+              child:  Column(
                 children: [
-                  _ListTile(
+                  const _ListTile(
                     icon: Icons.palette_outlined,
                     title: 'Appearance',
                     trailingText: 'Dark · System',
                     showDivider: true,
                   ),
-                  _ListTile(
-                    icon: Icons.info_outline_rounded,
-                    title: 'About Orbit',
-                    trailingText: 'v1.0.0',
-                    showDivider: false,
+                  FeatureFlagBuilder(
+                    flagKey: "enabled_modules",
+                    builder: (context,value) {
+                      return _ListTile(
+                        icon: Icons.info_outline_rounded,
+                        title: 'About Orbit',
+                        trailingText: (value.asJson["app_version"]??"1.0.0").toString(),
+                        showDivider: false,
+                      );
+                    }
                   ),
                 ],
               ),

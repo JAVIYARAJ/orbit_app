@@ -1,17 +1,18 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:feature_gate_pro/feature_gate_pro.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:orbit_app/app/theme/app_colors.dart';
-import 'package:orbit_app/core/widgets/orbit_icon.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit_app/app/router/app_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:orbit_app/app/theme/app_colors.dart';
+import 'package:orbit_app/core/widgets/orbit_icon.dart';
+import 'package:orbit_app/features/dashboard/domain/entities/dashboard_entity.dart';
+import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
+import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/widgets/workspace_switcher_sheet.dart';
-import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
-import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_state.dart';
-import 'package:orbit_app/features/dashboard/domain/entities/dashboard_entity.dart';
 
 /// Home / Dashboard screen.
 class DashboardPage extends StatefulWidget {
@@ -67,27 +68,32 @@ class _DashboardPageState extends State<DashboardPage> {
                 final data = state.dashboard;
                 return CustomScrollView(
                   slivers: [
-                    SliverAppBar(
+                    const SliverAppBar(
                       pinned: true,
                       backgroundColor: AppColors.background,
                       surfaceTintColor: Colors.transparent,
                       elevation: 0,
                       scrolledUnderElevation: 0,
-                      systemOverlayStyle: const SystemUiOverlayStyle(
+                      systemOverlayStyle: SystemUiOverlayStyle(
                         statusBarColor: Colors.transparent,
                         statusBarIconBrightness: Brightness.light,
                       ),
                       automaticallyImplyLeading: false,
                       titleSpacing: 0,
-                      title: const _TopBar(),
+                      title: _TopBar(),
                     ),
                     SliverToBoxAdapter(child: _Greeting(user: data.user)),
                     const SliverToBoxAdapter(child: _ActionButtonsRow()),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     SliverToBoxAdapter(
-                      child: _TelemetryGrid(
-                        stats: data.quickStats,
-                        timeTracker: data.timeTracker,
+                      child: FeatureFlagWidget(
+                        defaultValue: true,
+                        flagKey: "dashboard_timer_tracker",
+                        fallback: const SizedBox(),
+                        child: _TelemetryGrid(
+                          stats: data.quickStats,
+                          timeTracker: data.timeTracker,
+                        ),
                       ),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: 32)),

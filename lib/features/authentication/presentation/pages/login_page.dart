@@ -1,3 +1,4 @@
+import 'package:feature_gate_pro/feature_gate_pro.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
@@ -118,16 +119,21 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 32),
 
                   // ── Form card ───────────────────────────────────────────
-                  _FormCard(
-                    emailController: _emailController,
-                    passwordController: _passwordController,
-                    obscurePassword: _obscurePassword,
-                    busy: busy,
-                    errorText: errorText,
-                    onTogglePassword: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    onChanged: _clearErrors,
-                    onSubmit: _onSubmit,
+                  FeatureFlagWidget(
+                    listenToChanges: true,
+                    flagKey: "enabled_modules",
+                    jsonKey: "google_auth_only",
+                    child: _FormCard(
+                      emailController: _emailController,
+                      passwordController: _passwordController,
+                      obscurePassword: _obscurePassword,
+                      busy: busy,
+                      errorText: errorText,
+                      onTogglePassword: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      onChanged: _clearErrors,
+                      onSubmit: _onSubmit,
+                    ),
                   ),
 
                   const SizedBox(height: 32),
