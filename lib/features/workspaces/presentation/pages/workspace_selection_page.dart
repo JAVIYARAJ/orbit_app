@@ -57,8 +57,13 @@ class _WorkspaceSelectionPageState extends State<WorkspaceSelectionPage> {
               },
               child: BlocBuilder<WorkspaceCubit, WorkspaceState>(
                 builder: (context, state) {
-                if (state.status == WorkspaceStatus.loading) {
-                  return const Center(child: CircularProgressIndicator(color: kOrbitIndigo));
+                if (state.status == WorkspaceStatus.loading ||
+                    state.status == WorkspaceStatus.initial ||
+                    (state.status == WorkspaceStatus.loaded &&
+                        state.contextEntity?.activeWorkstationId != null)) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kOrbitIndigo),
+                  );
                 }
 
                 if (state.status == WorkspaceStatus.error) {

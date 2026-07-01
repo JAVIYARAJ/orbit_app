@@ -40,8 +40,29 @@ class _ProjectDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return BlocListener<ProjectDetailCubit, ProjectDetailState>(
+      listener: (context, state) {
+        if (state.status == ProjectDetailStatus.deleted) {
+          _showCustomSnackBar(
+            context: context,
+            message: 'Project deleted successfully',
+            type: SnackBarType.success,
+          );
+          context.pop();
+        } else if (state.status == ProjectDetailStatus.failure && state.errorMessage != null) {
+          final isSoftDeleted = state.errorMessage!.contains('Project deleted');
+          _showCustomSnackBar(
+            context: context,
+            message: state.errorMessage!,
+            type: isSoftDeleted ? SnackBarType.warning : SnackBarType.error,
+          );
+          if (isSoftDeleted) {
+            context.pop();
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(72),
         child: SafeArea(
@@ -109,7 +130,8 @@ class _ProjectDetailView extends StatelessWidget {
       body: BlocBuilder<ProjectDetailCubit, ProjectDetailState>(
         builder: (context, state) {
           if (state.status == ProjectDetailStatus.initial ||
-              state.status == ProjectDetailStatus.loading) {
+              state.status == ProjectDetailStatus.loading ||
+              state.status == ProjectDetailStatus.deleting) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             );
@@ -795,42 +817,6 @@ class _ProjectDetailView extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (project.repo != null && project.repo!.trim().isNotEmpty && !['-', '—', '–'].contains(project.repo!.trim())) ...[
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF131313),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.borderCard),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral600, size: 20),
-                                  const SizedBox(width: 12),
-                                  const Icon(Icons.code, color: AppColors.neutral400, size: 16),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Also delete GitHub repository',
-                                          style: TextStyle(color: AppColors.neutral400, fontSize: 12),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          project.repo!.replaceAll('https://github.com/', ''),
-                                          style: const TextStyle(color: AppColors.neutral500, fontSize: 10, fontFamily: 'monospace'),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
                           const SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
@@ -843,7 +829,308 @@ class _ProjectDetailView extends StatelessWidget {
                                 ),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              onPressed: () {},
+                              onPressed: () {
+                                String? getRepoShortName(String? repoUrl) {
+                                  if (repoUrl == null) return null;
+                                  try {
+                                    final uri = Uri.parse(repoUrl);
+                                    final segments = uri.pathSegments;
+                                    if (segments.length >= 2) {
+                                      return segments[1];
+                                    }
+                                  } catch (_) {}
+                                  return null;
+                                }
+
+                                String? getRepoFullName(String? repoUrl) {
+                                  if (repoUrl == null) return null;
+                                  try {
+                                    final uri = Uri.parse(repoUrl);
+                                    final segments = uri.pathSegments;
+                                    if (segments.length >= 2) {
+                                      return '${segments[0]}/${segments[1]}';
+                                    }
+                                  } catch (_) {}
+                                  return null;
+                                }
+
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (dialogContext) {
+                                    final controller = TextEditingController();
+                                    bool deleteRepo = false;
+                                    return StatefulBuilder(
+                                      builder: (builderContext, setState) {
+                                        final isGithubConnected = state.githubUser != null;
+                                        final hasRepo = project.repo != null &&
+                                            project.repo!.trim().isNotEmpty &&
+                                            !['-', '—', '–'].contains(project.repo!.trim());
+                                        final showDeleteRepoOption = hasRepo && isGithubConnected;
+                                        
+                                        final repoShortName = getRepoShortName(project.repo);
+                                        final repoFullName = getRepoFullName(project.repo);
+                                        
+                                        final requiredText = (deleteRepo && showDeleteRepoOption && repoShortName != null) ? repoShortName : project.name;
+                                        final isMatch = controller.text == requiredText;
+                                        
+                                        return Dialog(
+                                          backgroundColor: Colors.transparent,
+                                          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                                          child: Container(
+                                            constraints: const BoxConstraints(maxWidth: 400),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0F1014),
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(color: AppColors.borderCard, width: 1.5),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.5),
+                                                  blurRadius: 24,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            padding: const EdgeInsets.all(24),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.all(8),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.rose500.withValues(alpha: 0.1),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.warning_amber_rounded,
+                                                        color: AppColors.rose,
+                                                        size: 24,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    const Text(
+                                                      'Delete project',
+                                                      style: TextStyle(
+                                                        color: AppColors.white,
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.w700,
+                                                        letterSpacing: -0.3,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 16),
+                                                const Text(
+                                                  'Are you absolutely sure you want to delete this project? This will soft-delete the project and hide all of its tasks from the workspace.',
+                                                  style: TextStyle(
+                                                    color: AppColors.neutral400,
+                                                    fontSize: 13,
+                                                    height: 1.5,
+                                                  ),
+                                                ),
+                                                
+                                                if (showDeleteRepoOption) ...[
+                                                  const SizedBox(height: 16),
+                                                  GestureDetector(
+                                                    onTap: () {
+                                                      setState(() {
+                                                        deleteRepo = !deleteRepo;
+                                                      });
+                                                    },
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF13141A),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                        border: Border.all(color: AppColors.borderCard),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            deleteRepo
+                                                                ? Icons.check_box_rounded
+                                                                : Icons.check_box_outline_blank_rounded,
+                                                            color: deleteRepo
+                                                                ? AppColors.rose500
+                                                                : AppColors.neutral600,
+                                                            size: 20,
+                                                          ),
+                                                          const SizedBox(width: 12),
+                                                          const Icon(Icons.code, color: AppColors.neutral400, size: 16),
+                                                          const SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                const Text(
+                                                                  'Also delete GitHub repository',
+                                                                  style: TextStyle(color: AppColors.neutral400, fontSize: 12),
+                                                                  overflow: TextOverflow.ellipsis,
+                                                                ),
+                                                                Text(
+                                                                  project.repo!.replaceAll('https://github.com/', ''),
+                                                                  style: const TextStyle(color: AppColors.neutral500, fontSize: 10, fontFamily: 'monospace'),
+                                                                  overflow: TextOverflow.ellipsis,
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ] else if (hasRepo && !isGithubConnected) ...[
+                                                  const SizedBox(height: 16),
+                                                  Container(
+                                                    padding: const EdgeInsets.all(12),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.amber.withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+                                                    ),
+                                                    child: const Row(
+                                                      children: [
+                                                        Icon(Icons.info_outline_rounded, color: AppColors.amber, size: 16),
+                                                        SizedBox(width: 8),
+                                                        Expanded(
+                                                          child: Text(
+                                                            'GitHub not connected. Reconnect GitHub in settings to delete repository.',
+                                                            style: TextStyle(color: AppColors.amber, fontSize: 11, height: 1.3),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                                
+                                                const SizedBox(height: 16),
+                                                RichText(
+                                                  text: TextSpan(
+                                                    style: const TextStyle(
+                                                      color: AppColors.neutral400,
+                                                      fontSize: 13,
+                                                      height: 1.5,
+                                                    ),
+                                                    children: [
+                                                      const TextSpan(text: 'Type '),
+                                                      TextSpan(
+                                                        text: requiredText,
+                                                        style: const TextStyle(
+                                                          color: AppColors.white,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                      const TextSpan(text: ' to confirm.'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                TextField(
+                                                  controller: controller,
+                                                  onChanged: (_) => setState(() {}),
+                                                  style: const TextStyle(
+                                                    color: AppColors.white,
+                                                    fontSize: 14,
+                                                  ),
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Enter confirmation text',
+                                                    hintStyle: const TextStyle(
+                                                      color: AppColors.neutral600,
+                                                      fontSize: 14,
+                                                    ),
+                                                    filled: true,
+                                                    fillColor: const Color(0xFF13141A),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      borderSide: const BorderSide(color: AppColors.borderCard),
+                                                    ),
+                                                    enabledBorder: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      borderSide: const BorderSide(color: AppColors.borderCard),
+                                                    ),
+                                                    focusedBorder: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      borderSide: const BorderSide(color: AppColors.rose, width: 1.5),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 24),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: GestureDetector(
+                                                        onTap: () => Navigator.pop(dialogContext),
+                                                        child: Container(
+                                                          height: 44,
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.transparent,
+                                                            borderRadius: BorderRadius.circular(8),
+                                                            border: Border.all(color: AppColors.borderCard),
+                                                          ),
+                                                          child: const Center(
+                                                            child: Text(
+                                                              'Cancel',
+                                                              style: TextStyle(
+                                                                color: AppColors.neutral300,
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: GestureDetector(
+                                                        onTap: isMatch
+                                                            ? () {
+                                                                Navigator.pop(dialogContext);
+                                                                context.read<ProjectDetailCubit>().deleteProject(
+                                                                  project.shortId,
+                                                                  workstationId: deleteRepo && showDeleteRepoOption ? project.workstationId : null,
+                                                                  repoFullName: deleteRepo && showDeleteRepoOption ? repoFullName : null,
+                                                                );
+                                                              }
+                                                            : null,
+                                                        child: AnimatedContainer(
+                                                          duration: const Duration(milliseconds: 200),
+                                                          height: 44,
+                                                          decoration: BoxDecoration(
+                                                            color: isMatch
+                                                                ? AppColors.rose
+                                                                : AppColors.rose.withValues(alpha: 0.2),
+                                                            borderRadius: BorderRadius.circular(8),
+                                                          ),
+                                                          child: Center(
+                                                            child: Text(
+                                                              'Delete',
+                                                              style: TextStyle(
+                                                                color: isMatch
+                                                                    ? AppColors.white
+                                                                    : AppColors.white.withValues(alpha: 0.3),
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              },
                               child: const Text('Delete project', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
@@ -912,6 +1199,7 @@ class _ProjectDetailView extends StatelessWidget {
           );
         },
       ),
+    ),
     );
   }
 }
@@ -1001,4 +1289,94 @@ class _GithubLoadingViewState extends State<_GithubLoadingView> with SingleTicke
       ),
     );
   }
+}
+
+enum SnackBarType { success, warning, error }
+
+void _showCustomSnackBar({
+  required BuildContext context,
+  required String message,
+  required SnackBarType type,
+}) {
+  final Color borderColor;
+  final Color iconBgColor;
+  final Color iconColor;
+  final IconData icon;
+
+  switch (type) {
+    case SnackBarType.success:
+      borderColor = AppColors.emerald.withValues(alpha: 0.3);
+      iconBgColor = AppColors.emerald.withValues(alpha: 0.1);
+      iconColor = AppColors.emerald;
+      icon = Icons.check_circle_outline_rounded;
+      break;
+    case SnackBarType.warning:
+      borderColor = AppColors.amber.withValues(alpha: 0.3);
+      iconBgColor = AppColors.amber.withValues(alpha: 0.1);
+      iconColor = AppColors.amber;
+      icon = Icons.warning_amber_rounded;
+      break;
+    case SnackBarType.error:
+      borderColor = AppColors.rose.withValues(alpha: 0.3);
+      iconBgColor = AppColors.rose.withValues(alpha: 0.1);
+      iconColor = AppColors.rose;
+      icon = Icons.error_outline_rounded;
+      break;
+  }
+
+  ScaffoldMessenger.of(context).clearSnackBars();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      padding: EdgeInsets.zero,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F1014),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: borderColor,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

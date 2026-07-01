@@ -58,4 +58,28 @@ class ProjectRepositoryImpl implements ProjectRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  ResultFuture<void> deleteProject(String projectId) async {
+    try {
+      await _remoteDataSource.deleteProject(projectId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> deleteGithubRepo(String workstationId, String repoFullName) async {
+    try {
+      await _remoteDataSource.deleteGithubRepo(workstationId, repoFullName);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }

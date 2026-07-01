@@ -316,7 +316,15 @@ class _ProjectCard extends StatelessWidget {
     final Color statusColor = const Color(0xFF00B4D8); // Cyan
 
     return GestureDetector(
-      onTap: () => context.push('/projects/detail/$id'),
+      onTap: () async {
+        await context.push('/projects/detail/$id');
+        if (context.mounted) {
+          final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+          if (wsId != null) {
+            context.read<ProjectsBloc>().add(FetchProjectsEvent(wsId));
+          }
+        }
+      },
       behavior: HitTestBehavior.opaque,
       child: Container(
         decoration: BoxDecoration(

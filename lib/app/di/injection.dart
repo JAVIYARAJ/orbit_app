@@ -19,8 +19,17 @@ import 'package:orbit_app/features/projects/data/datasource/project_remote_data_
 import 'package:orbit_app/features/projects/data/repositories/project_repository_impl.dart';
 import 'package:orbit_app/features/projects/domain/repositories/project_repository.dart';
 import 'package:orbit_app/features/projects/domain/usecases/get_workstation_projects_use_case.dart';
+import 'package:orbit_app/features/projects/domain/usecases/delete_project_use_case.dart';
+import 'package:orbit_app/features/projects/domain/usecases/delete_github_repo_use_case.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/projects_bloc.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/project_detail_cubit.dart';
+import 'package:orbit_app/features/notes/data/datasource/note_remote_data_source.dart';
+import 'package:orbit_app/features/notes/data/repositories/note_repository_impl.dart';
+import 'package:orbit_app/features/notes/domain/repositories/note_repository.dart';
+import 'package:orbit_app/features/notes/domain/usecases/get_note_folders_use_case.dart';
+import 'package:orbit_app/features/notes/domain/usecases/get_folder_notes_use_case.dart';
+import 'package:orbit_app/features/notes/presentation/cubit/note_folders_cubit.dart';
+import 'package:orbit_app/features/notes/presentation/cubit/folder_notes_cubit.dart';
 import 'package:orbit_app/features/tasks/data/datasource/task_remote_data_source.dart';
 import 'package:orbit_app/features/tasks/data/repositories/task_repository_impl.dart';
 import 'package:orbit_app/features/tasks/domain/repositories/task_repository.dart';
@@ -95,8 +104,10 @@ Future<void> configureDependencies() async {
       () => ProjectRepositoryImpl(remoteDataSource: sl()),
     )
     ..registerFactory(() => GetWorkstationProjectsUseCase(sl()))
+    ..registerFactory(() => DeleteProjectUseCase(sl()))
+    ..registerFactory(() => DeleteGithubRepoUseCase(sl()))
     ..registerFactory(() => ProjectsBloc(sl()))
-    ..registerFactory(() => ProjectDetailCubit(repository: sl()))
+    ..registerFactory(() => ProjectDetailCubit(repository: sl(), deleteProject: sl(), deleteGithubRepo: sl()))
     // ── Tasks ──────────────────────────────────────────────────────────────
     ..registerFactory<TaskRemoteDataSource>(
       () => TaskRemoteDataSourceImpl(sl()),
@@ -117,5 +128,16 @@ Future<void> configureDependencies() async {
       () => DashboardRepositoryImpl(remoteDataSource: sl()),
     )
     ..registerFactory(() => GetMobileDashboardUseCase(sl()))
-    ..registerFactory(() => DashboardCubit(getMobileDashboardUseCase: sl()));
+    ..registerFactory(() => DashboardCubit(getMobileDashboardUseCase: sl()))
+    // ── Notes ──────────────────────────────────────────────────────────────
+    ..registerFactory<NoteRemoteDataSource>(
+      () => NoteRemoteDataSourceImpl(sl()),
+    )
+    ..registerFactory<NoteRepository>(
+      () => NoteRepositoryImpl(sl()),
+    )
+    ..registerFactory(() => GetNoteFoldersUseCase(sl()))
+    ..registerFactory(() => GetFolderNotesUseCase(sl()))
+    ..registerFactory(() => NoteFoldersCubit(sl()))
+    ..registerFactory(() => FolderNotesCubit(sl()));
 }

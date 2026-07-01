@@ -13,6 +13,7 @@ import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.
 import 'package:orbit_app/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/note_detail_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/notes_page.dart';
+import 'package:orbit_app/features/notes/presentation/pages/folder_notes_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/project_detail_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/projects_page.dart';
 import 'package:orbit_app/features/tasks/presentation/pages/task_detail_page.dart';
@@ -169,6 +170,15 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
                   path: 'detail',
                   name: 'noteDetail',
                   builder: (context, state) => const NoteDetailPage(),
+                ),
+                GoRoute(
+                  path: 'folder/:folderId',
+                  name: 'folderNotes',
+                  builder: (context, state) {
+                    final folderId = state.pathParameters['folderId']!;
+                    final folderName = state.uri.queryParameters['name'] ?? 'Notes';
+                    return FolderNotesPage(folderId: folderId, folderName: folderName);
+                  },
                 ),
               ],
             ),

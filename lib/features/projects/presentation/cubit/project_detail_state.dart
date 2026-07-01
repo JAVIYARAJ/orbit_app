@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:orbit_app/features/projects/domain/entities/project_entity.dart';
 
-enum ProjectDetailStatus { initial, loading, success, failure }
+enum ProjectDetailStatus { initial, loading, success, failure, deleting, deleted }
 
 class ProjectDetailState extends Equatable {
   const ProjectDetailState({

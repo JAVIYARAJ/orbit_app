@@ -1,13 +1,68 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orbit_app/features/projects/domain/repositories/project_repository.dart';
+import 'package:orbit_app/features/projects/domain/usecases/delete_project_use_case.dart';
+import 'package:orbit_app/features/projects/domain/usecases/delete_github_repo_use_case.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/project_detail_state.dart';
 
 class ProjectDetailCubit extends Cubit<ProjectDetailState> {
-  ProjectDetailCubit({required ProjectRepository repository})
-      : _repository = repository,
+  ProjectDetailCubit({
+    required ProjectRepository repository,
+    required DeleteProjectUseCase deleteProject,
+    required DeleteGithubRepoUseCase deleteGithubRepo,
+  })  : _repository = repository,
+        _deleteProject = deleteProject,
+        _deleteGithubRepo = deleteGithubRepo,
         super(const ProjectDetailState());
 
   final ProjectRepository _repository;
+  final DeleteProjectUseCase _deleteProject;
+  final DeleteGithubRepoUseCase _deleteGithubRepo;
+
+  Future<void> deleteProject(
+    String projectId, {
+    String? workstationId,
+    String? repoFullName,
+  }) async {
+    emit(state.copyWith(status: ProjectDetailStatus.deleting));
+    
+    // Always delete the project first
+    final result = await _deleteProject(projectId);
+    
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          status: ProjectDetailStatus.failure,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // If repoFullName and workstationId are provided, delete the GitHub repository
+        if (workstationId != null && repoFullName != null) {
+          final repoResult = await _deleteGithubRepo(
+            DeleteGithubRepoParams(
+              workstationId: workstationId,
+              repoFullName: repoFullName,
+            ),
+          );
+          
+          repoResult.fold(
+            (failure) {
+              // Project deleted, but notify about repo deletion failure
+              emit(state.copyWith(
+                status: ProjectDetailStatus.failure,
+                errorMessage: 'Project deleted, but failed to delete GitHub repository: ${failure.message}',
+              ));
+            },
+            (_) {
+              emit(state.copyWith(status: ProjectDetailStatus.deleted));
+            },
+          );
+        } else {
+          emit(state.copyWith(status: ProjectDetailStatus.deleted));
+        }
+      },
+    );
+  }
 
   Future<void> fetchProjectDetail(String workstationId, String projectId) async {
     emit(state.copyWith(status: ProjectDetailStatus.loading));
