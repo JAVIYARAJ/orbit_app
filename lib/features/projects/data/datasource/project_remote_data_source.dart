@@ -10,6 +10,8 @@ abstract interface class ProjectRemoteDataSource {
   Future<List<dynamic>> getGithubCommits(String workstationId, String owner, String repo);
   Future<void> deleteProject(String projectId);
   Future<void> deleteGithubRepo(String workstationId, String repoFullName);
+  Future<ProjectEntity> createProject(String workstationId, Map<String, dynamic> projectData);
+  Future<ProjectEntity> updateProject(String shortId, Map<String, dynamic> projectData);
 }
 
 class ProjectRemoteDataSourceImpl implements ProjectRemoteDataSource {
@@ -102,7 +104,7 @@ class ProjectRemoteDataSourceImpl implements ProjectRemoteDataSource {
   @override
   Future<void> deleteProject(String projectId) async {
     try {
-      await _client.rpc(
+      await _client.rpc<void>(
         'soft_delete_project',
         params: {'p_short_id': projectId},
       );
@@ -124,11 +126,43 @@ class ProjectRemoteDataSourceImpl implements ProjectRemoteDataSource {
           'body': null,
         },
       );
-      if (response.status != null && response.status! >= 400) {
+      if (response.status >= 400) {
         final Map<String, dynamic>? data = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : null;
         final String? msg = data != null ? (data['data'] is Map ? data['data']['message'] as String? : data['message'] as String?) : null;
         throw ServerException(message: msg ?? 'GitHub proxy error ${response.status}');
       }
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<ProjectEntity> createProject(String workstationId, Map<String, dynamic> projectData) async {
+    try {
+      final data = await _client.rpc<Map<String, dynamic>>(
+        'create_project',
+        params: {
+          'p_workstation_id': workstationId,
+          'p_data': projectData,
+        },
+      );
+      return ProjectModel.fromJson(data);
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<ProjectEntity> updateProject(String shortId, Map<String, dynamic> projectData) async {
+    try {
+      final data = await _client.rpc<Map<String, dynamic>>(
+        'update_project',
+        params: {
+          'p_short_id': shortId,
+          'p_data': projectData,
+        },
+      );
+      return ProjectModel.fromJson(data);
     } catch (e) {
       throw ServerException(message: e.toString());
     }

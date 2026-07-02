@@ -19,8 +19,11 @@ import 'package:orbit_app/features/projects/data/datasource/project_remote_data_
 import 'package:orbit_app/features/projects/data/repositories/project_repository_impl.dart';
 import 'package:orbit_app/features/projects/domain/repositories/project_repository.dart';
 import 'package:orbit_app/features/projects/domain/usecases/get_workstation_projects_use_case.dart';
+import 'package:orbit_app/features/projects/domain/usecases/create_project_use_case.dart';
+import 'package:orbit_app/features/projects/domain/usecases/update_project_use_case.dart';
 import 'package:orbit_app/features/projects/domain/usecases/delete_project_use_case.dart';
 import 'package:orbit_app/features/projects/domain/usecases/delete_github_repo_use_case.dart';
+import 'package:orbit_app/features/projects/presentation/cubit/create_project_bloc.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/projects_bloc.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/project_detail_cubit.dart';
 import 'package:orbit_app/features/notes/data/datasource/note_remote_data_source.dart';
@@ -34,7 +37,10 @@ import 'package:orbit_app/features/tasks/data/datasource/task_remote_data_source
 import 'package:orbit_app/features/tasks/data/repositories/task_repository_impl.dart';
 import 'package:orbit_app/features/tasks/domain/repositories/task_repository.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/get_workstation_tasks_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/get_task_detail_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/update_task_use_case.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
+import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_bloc.dart';
 import 'package:orbit_app/features/notifications/data/repositories/notifications_repository.dart';
 import 'package:orbit_app/features/notifications/presentation/bloc/notifications_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -42,6 +48,7 @@ import 'package:orbit_app/features/dashboard/data/datasource/dashboard_remote_da
 import 'package:orbit_app/features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import 'package:orbit_app/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:orbit_app/features/dashboard/domain/usecases/get_mobile_dashboard_use_case.dart';
+import 'package:orbit_app/core/services/project_metadata_service.dart';
 import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 /// Global service locator.
 final GetIt sl = GetIt.instance;
@@ -106,7 +113,10 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => GetWorkstationProjectsUseCase(sl()))
     ..registerFactory(() => DeleteProjectUseCase(sl()))
     ..registerFactory(() => DeleteGithubRepoUseCase(sl()))
+    ..registerFactory(() => CreateProjectUseCase(sl()))
+    ..registerFactory(() => UpdateProjectUseCase(sl()))
     ..registerFactory(() => ProjectsBloc(sl()))
+    ..registerFactory(() => CreateProjectBloc(metadataService: sl(), createProjectUseCase: sl(), updateProjectUseCase: sl()))
     ..registerFactory(() => ProjectDetailCubit(repository: sl(), deleteProject: sl(), deleteGithubRepo: sl()))
     // ── Tasks ──────────────────────────────────────────────────────────────
     ..registerFactory<TaskRemoteDataSource>(
@@ -116,7 +126,10 @@ Future<void> configureDependencies() async {
       () => TaskRepositoryImpl(remoteDataSource: sl()),
     )
     ..registerFactory(() => GetWorkstationTasksUseCase(sl()))
+    ..registerFactory(() => GetTaskDetailUseCase(sl()))
+    ..registerFactory(() => UpdateTaskUseCase(sl()))
     ..registerFactory(() => TasksBloc(sl()))
+    ..registerFactory(() => TaskDetailBloc(getTaskDetailUseCase: sl(), updateTaskUseCase: sl()))
     // ── Notifications ──────────────────────────────────────────────────────
     ..registerFactory(() => NotificationsRepository(sl()))
     ..registerFactory(() => NotificationsBloc(sl()))
@@ -139,5 +152,7 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => GetNoteFoldersUseCase(sl()))
     ..registerFactory(() => GetFolderNotesUseCase(sl()))
     ..registerFactory(() => NoteFoldersCubit(sl()))
-    ..registerFactory(() => FolderNotesCubit(sl()));
+    ..registerFactory(() => FolderNotesCubit(sl()))
+    // ── Core Services ──────────────────────────────────────────────────────
+    ..registerLazySingleton(() => ProjectMetadataService(sl()));
 }

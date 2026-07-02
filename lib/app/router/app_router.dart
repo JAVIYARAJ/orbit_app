@@ -16,6 +16,8 @@ import 'package:orbit_app/features/notes/presentation/pages/notes_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/folder_notes_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/project_detail_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/projects_page.dart';
+import 'package:orbit_app/features/projects/presentation/pages/create_project_page.dart';
+import 'package:orbit_app/features/projects/domain/entities/project_entity.dart';
 import 'package:orbit_app/features/tasks/presentation/pages/task_detail_page.dart';
 import 'package:orbit_app/features/tasks/presentation/pages/tasks_page.dart';
 import 'package:orbit_app/features/utilities/presentation/pages/utilities_page.dart';
@@ -35,6 +37,7 @@ abstract class AppRoutes {
   static const String selectWorkspace = '/select-workspace';
   static const String dashboard = '/dashboard';
   static const String projects = '/projects';
+  static const String projectAdd = '/projects/add';
   static const String projectDetail = '/projects/detail';
   static const String tasks = '/tasks';
   static const String taskDetail = '/tasks/detail';
@@ -139,6 +142,18 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
                     projectId: state.pathParameters['id']!,
                   ),
                 ),
+                GoRoute(
+                  path: 'add',
+                  name: 'projectAdd',
+                  builder: (context, state) => const CreateProjectPage(),
+                ),
+                GoRoute(
+                  path: 'edit',
+                  name: 'projectEdit',
+                  builder: (context, state) => CreateProjectPage(
+                    project: state.extra as ProjectEntity,
+                  ),
+                ),
               ],
             ),
           ],
@@ -151,9 +166,11 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
               builder: (context, state) => const TasksPage(),
               routes: [
                 GoRoute(
-                  path: 'detail',
+                  path: 'detail/:taskId',
                   name: 'taskDetail',
-                  builder: (context, state) => const TaskDetailPage(),
+                  builder: (context, state) => TaskDetailPage(
+                    taskId: state.pathParameters['taskId']!,
+                  ),
                 ),
               ],
             ),

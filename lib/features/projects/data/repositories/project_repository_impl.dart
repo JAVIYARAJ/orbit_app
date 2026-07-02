@@ -82,4 +82,28 @@ class ProjectRepositoryImpl implements ProjectRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  ResultFuture<ProjectEntity> createProject(String workstationId, Map<String, dynamic> projectData) async {
+    try {
+      final project = await _remoteDataSource.createProject(workstationId, projectData);
+      return Right(project);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<ProjectEntity> updateProject(String shortId, Map<String, dynamic> projectData) async {
+    try {
+      final project = await _remoteDataSource.updateProject(shortId, projectData);
+      return Right(project);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }

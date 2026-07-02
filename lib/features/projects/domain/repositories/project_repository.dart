@@ -8,4 +8,6 @@ abstract interface class ProjectRepository {
   ResultFuture<List<dynamic>> getGithubCommits(String workstationId, String owner, String repo);
   ResultFuture<void> deleteProject(String projectId);
   ResultFuture<void> deleteGithubRepo(String workstationId, String repoFullName);
+  ResultFuture<ProjectEntity> createProject(String workstationId, Map<String, dynamic> projectData);
+  ResultFuture<ProjectEntity> updateProject(String shortId, Map<String, dynamic> projectData);
 }

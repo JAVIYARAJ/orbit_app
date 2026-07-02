@@ -252,7 +252,15 @@ class _TasksViewState extends State<_TasksView> {
                                       isSubtask: isSubtask,
                                       subsDone: t.subsDone,
                                       subsTotal: t.subsTotal,
-                                      onTap: () {}, // => context.push('/tasks/detail'),
+                                      onTap: () async {
+                                        final didChange = await context.pushNamed<bool>('taskDetail', pathParameters: {'taskId': t.id});
+                                        if (didChange == true) {
+                                          final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                                          if (wsId != null && context.mounted) {
+                                            context.read<TasksBloc>().add(FetchTasksEvent(wsId));
+                                          }
+                                        }
+                                      },
                                     );
                                   }
 

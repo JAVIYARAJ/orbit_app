@@ -891,9 +891,10 @@ class _ProjectDetailView extends StatelessWidget {
                                               ],
                                             ),
                                             padding: const EdgeInsets.all(24),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                            child: SingleChildScrollView(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Row(
                                                   children: [
@@ -1091,7 +1092,7 @@ class _ProjectDetailView extends StatelessWidget {
                                                                 Navigator.pop(dialogContext);
                                                                 context.read<ProjectDetailCubit>().deleteProject(
                                                                   project.shortId,
-                                                                  workstationId: deleteRepo && showDeleteRepoOption ? project.workstationId : null,
+                                                                  workstationId: deleteRepo && showDeleteRepoOption ? (project.workstationId.isNotEmpty ? project.workstationId : context.read<WorkspaceCubit>().state.selectedWorkstation?.id) : null,
                                                                   repoFullName: deleteRepo && showDeleteRepoOption ? repoFullName : null,
                                                                 );
                                                               }
@@ -1125,7 +1126,7 @@ class _ProjectDetailView extends StatelessWidget {
                                               ],
                                             ),
                                           ),
-                                        );
+                                        ));
                                       },
                                     );
                                   },
@@ -1178,7 +1179,16 @@ class _ProjectDetailView extends StatelessWidget {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onPressed: () {},
+                        onPressed: () {
+                          context.pushNamed('projectEdit', extra: project).then((updated) {
+                            if (updated == true) {
+                              final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                              if (wsId != null) {
+                                context.read<ProjectDetailCubit>().fetchProjectDetail(wsId, project.id);
+                              }
+                            }
+                          });
+                        },
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

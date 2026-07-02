@@ -201,15 +201,26 @@ class _Header extends StatelessWidget {
               );
             },
           ),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.brand,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Icon(Icons.add_rounded, color: AppColors.white, size: 24),
+          GestureDetector(
+            onTap: () async {
+              final result = await context.push('/projects/add');
+              if (result == true && context.mounted) {
+                final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                if (wsId != null) {
+                  context.read<ProjectsBloc>().add(FetchProjectsEvent(wsId));
+                }
+              }
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: AppColors.brand,
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Icon(Icons.add_rounded, color: AppColors.white, size: 24),
+              ),
             ),
           ),
         ],
