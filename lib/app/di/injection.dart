@@ -39,6 +39,8 @@ import 'package:orbit_app/features/tasks/domain/repositories/task_repository.dar
 import 'package:orbit_app/features/tasks/domain/usecases/get_workstation_tasks_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/get_task_detail_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/update_task_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/add_task_comment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_bloc.dart';
 import 'package:orbit_app/features/notifications/data/repositories/notifications_repository.dart';
@@ -128,8 +130,15 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => GetWorkstationTasksUseCase(sl()))
     ..registerFactory(() => GetTaskDetailUseCase(sl()))
     ..registerFactory(() => UpdateTaskUseCase(sl()))
+    ..registerFactory(() => AddTaskCommentUseCase(sl()))
+    ..registerFactory(() => DeleteTaskCommentUseCase(sl()))
     ..registerFactory(() => TasksBloc(sl()))
-    ..registerFactory(() => TaskDetailBloc(getTaskDetailUseCase: sl(), updateTaskUseCase: sl()))
+    ..registerFactory(() => TaskDetailBloc(
+          getTaskDetailUseCase: sl(),
+          updateTaskUseCase: sl(),
+          addTaskCommentUseCase: sl(),
+          deleteTaskCommentUseCase: sl(),
+        ))
     // ── Notifications ──────────────────────────────────────────────────────
     ..registerFactory(() => NotificationsRepository(sl()))
     ..registerFactory(() => NotificationsBloc(sl()))

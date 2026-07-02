@@ -81,3 +81,37 @@ class UpdateTaskDescriptionEvent extends TaskDetailEvent {
   final String description;
   @override List<Object?> get props => [workstationId, taskId, description];
 }
+
+class AddTaskCommentEvent extends TaskDetailEvent {
+  const AddTaskCommentEvent({
+    required this.workstationId,
+    required this.taskId,
+    required this.body,
+    required this.mentionedUserIds,
+    this.parentId,
+  });
+
+  final String workstationId;
+  final String taskId;
+  final String body;
+  final List<String> mentionedUserIds;
+  final String? parentId;
+
+  @override
+  List<Object?> get props => [workstationId, taskId, body, mentionedUserIds, parentId];
+}
+
+class DeleteTaskCommentEvent extends TaskDetailEvent {
+  const DeleteTaskCommentEvent({
+    required this.workstationId,
+    required this.taskId,
+    required this.commentId,
+  });
+
+  final String workstationId;
+  final String taskId;
+  final String commentId;
+
+  @override
+  List<Object?> get props => [workstationId, taskId, commentId];
+}

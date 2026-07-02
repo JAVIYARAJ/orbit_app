@@ -11,6 +11,8 @@ abstract interface class TaskRemoteDataSource {
   Future<TasksDataEntity> getWorkstationTasks(String workstationId);
   Future<TaskDetailModel> getTaskDetail(String workstationId, String taskId);
   Future<TaskDetailModel> updateTask(String taskId, Map<String, dynamic> data);
+  Future<void> addTaskComment(String taskId, String body, List<String> mentionedUserIds, String? parentId);
+  Future<void> deleteTaskComment(String commentId);
 }
 
 class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
@@ -76,6 +78,37 @@ class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
         },
       );
       return TaskDetailModel.fromJson(res);
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<void> addTaskComment(String taskId, String body, List<String> mentionedUserIds, String? parentId) async {
+    try {
+      await _client.rpc<void>(
+        'add_task_comment',
+        params: {
+          'p_task_id': taskId,
+          'p_body': body,
+          'p_mentions': mentionedUserIds,
+          'p_parent_id': parentId,
+        },
+      );
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<void> deleteTaskComment(String commentId) async {
+    try {
+      await _client.rpc<void>(
+        'delete_task_comment',
+        params: {
+          'p_comment_id': commentId,
+        },
+      );
     } catch (e) {
       throw ServerException(message: e.toString());
     }

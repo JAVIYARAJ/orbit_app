@@ -6,4 +6,6 @@ abstract interface class TaskRepository {
   ResultFuture<TasksDataEntity> getWorkstationTasks(String workstationId);
   ResultFuture<TaskDetailEntity> getTaskDetail(String workstationId, String taskId);
   ResultFuture<TaskDetailEntity> updateTask(String taskId, Map<String, dynamic> data);
+  ResultFuture<void> addTaskComment(String taskId, String body, List<String> mentionedUserIds, String? parentId);
+  ResultFuture<void> deleteTaskComment(String commentId);
 }

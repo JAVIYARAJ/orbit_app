@@ -10,6 +10,7 @@ import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit
 import 'package:orbit_app/app/di/injection.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TaskDetailPage extends StatelessWidget {
   const TaskDetailPage({super.key, required this.taskId});
@@ -41,13 +42,48 @@ class TaskDetailView extends StatefulWidget {
 class _TaskDetailViewState extends State<TaskDetailView> {
   int _activityTabIndex = 0; // 0: Comments, 1: History, 2: Work Log
   bool _didChange = false;
+  bool _showSaved = false;
+  Timer? _savedTimer;
+  String? _replyingToCommentId;
+  String? _mentionQuery;
+  bool _isReplyingMention = false;
+  final List<String> _pendingMentions = [];
+
+  final TextEditingController _commentController = TextEditingController();
+  final TextEditingController _replyController = TextEditingController();
+
+  @override
+  void dispose() {
+    _savedTimer?.cancel();
+    _commentController.dispose();
+    _replyController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TaskDetailBloc, TaskDetailState>(
-      listenWhen: (prev, current) => current.isSaving && !prev.isSaving,
+      listenWhen: (prev, current) => prev.isSaving != current.isSaving,
       listener: (context, state) {
-        _didChange = true;
+        if (state.isSaving) {
+          _didChange = true;
+          _savedTimer?.cancel();
+          setState(() {
+            _showSaved = false;
+          });
+        } else {
+          setState(() {
+            _showSaved = true;
+          });
+          _savedTimer?.cancel();
+          _savedTimer = Timer(const Duration(seconds: 1), () {
+            if (mounted) {
+              setState(() {
+                _showSaved = false;
+              });
+            }
+          });
+        }
       },
       builder: (context, state) {
         if (state.status == TaskDetailStatus.loading || state.status == TaskDetailStatus.initial) {
@@ -89,6 +125,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               ],
             ),
             actions: [
+              _buildSaveStatus(state.isSaving),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.close_rounded, color: AppColors.neutral400),
                 onPressed: () => context.pop(_didChange),
@@ -96,79 +134,94 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               const SizedBox(width: 8),
             ],
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _SectionTitle('TITLE'),
-              const SizedBox(height: 8),
-              _DebouncedTextField(
-                initialValue: task.title,
-                maxLines: null,
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                ),
-                onChanged: (val) {
-                  final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
-                  if (wsId != null && val.trim().isNotEmpty) {
-                    _dispatchUpdate(UpdateTaskTitleEvent(workstationId: wsId, taskId: task.taskId, title: val.trim()));
-                  }
-                },
-              ),
-              const SizedBox(height: 24),
-
-              const _SectionTitle('DESCRIPTION'),
-              const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141518),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2C2D33)),
-                ),
-                child: _DebouncedTextField(
-                  initialValue: task.description ?? '',
-                  maxLines: null,
-                  hintText: 'Add a description...',
-                  style: const TextStyle(color: AppColors.neutral300, fontSize: 14, height: 1.5),
-                  onChanged: (val) {
-                    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
-                    if (wsId != null) {
-                      _dispatchUpdate(UpdateTaskDescriptionEvent(workstationId: wsId, taskId: task.taskId, description: val.trim()));
-                    }
-                  },
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                color: const Color(0xFF1E1F24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionTitle('TITLE'),
+                    const SizedBox(height: 8),
+                    _DebouncedTextField(
+                      initialValue: task.title,
+                      maxLines: null,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                      onChanged: (val) {
+                        final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                        if (wsId != null && val.trim().isNotEmpty) {
+                          _dispatchUpdate(UpdateTaskTitleEvent(workstationId: wsId, taskId: task.id, title: val.trim()));
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const Divider(color: Color(0xFF2C2D33), height: 1, thickness: 1),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                  children: [
+                    const _SectionTitle('DESCRIPTION'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141518),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF2C2D33)),
+                      ),
+                      child: _DebouncedTextField(
+                        initialValue: task.description ?? '',
+                        maxLines: null,
+                        hintText: 'Add a description...',
+                        style: const TextStyle(color: AppColors.neutral300, fontSize: 14, height: 1.5),
+                        onChanged: (val) {
+                          final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                          if (wsId != null) {
+                            _dispatchUpdate(UpdateTaskDescriptionEvent(workstationId: wsId, taskId: task.id, description: val.trim()));
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
-              _buildAttachments(data.attachments),
-              const SizedBox(height: 24),
+                    _buildAttachments(data.attachments),
+                    const SizedBox(height: 24),
 
-              _buildSubtasks(data.subtasks, task.taskId),
-              const SizedBox(height: 24),
+                    _buildSubtasks(data.subtasks, task.id),
+                    const SizedBox(height: 24),
 
-              _buildLinkedNotes(data.linkedNotes),
-              const SizedBox(height: 32),
+                    _buildLinkedNotes(data.linkedNotes),
+                    const SizedBox(height: 32),
 
-              const _SectionTitle('ACTIVITY'),
-              const SizedBox(height: 12),
-              _buildActivityTabs(),
-              const SizedBox(height: 16),
-              _buildActivityContent(data),
-              const SizedBox(height: 32),
-              
-              _buildDropdowns(task, data.metadata),
-              const SizedBox(height: 24),
+                    const _SectionTitle('ACTIVITY'),
+                    const SizedBox(height: 12),
+                    _buildActivityTabs(),
+                    const SizedBox(height: 16),
+                    _buildActivityContent(data),
+                    const SizedBox(height: 32),
+                    
+                    _buildDropdowns(task, data.metadata),
+                    const SizedBox(height: 24),
 
-              _buildTags(task, data.metadata),
-              const SizedBox(height: 32),
+                    _buildTags(task, data.metadata),
+                    const SizedBox(height: 32),
 
-              _buildTimeAndProgress(task),
-              const SizedBox(height: 24),
+                    _buildTimeAndProgress(task),
+                    const SizedBox(height: 24),
 
-              _buildBranch(task),
+                    _buildBranch(task),
+                  ],
+                ),
+              ),
             ],
           ),
         ));
@@ -450,29 +503,69 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   Widget _buildActivityContent(TaskDetailEntity data) {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    final task = data.task;
+
     if (_activityTabIndex == 0) {
+      // Group comments: top-level + their replies
+      final parents = data.comments.where((c) => c.parentId == null || c.parentId!.isEmpty).toList();
+      parents.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      final Map<String, List<TaskCommentEntity>> repliesByParent = {};
+      for (final reply in data.comments.where((c) => c.parentId != null && c.parentId!.isNotEmpty)) {
+        repliesByParent.putIfAbsent(reply.parentId!, () => []).add(reply);
+      }
+      for (final replies in repliesByParent.values) {
+        replies.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      }
+
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final comment in data.comments) _buildCommentRow(comment),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF141518),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF2C2D33)),
-            ),
-            child: const TextField(
-              maxLines: 3,
-              style: TextStyle(color: AppColors.white, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Write a comment... @ to mention, paste/drop an image to embed (Ctrl+Enter to submit)',
-                hintStyle: TextStyle(color: AppColors.neutral500, fontSize: 13),
-                border: InputBorder.none,
-                isDense: true,
+          if (wsId != null) ...[
+            _buildMainComposer(wsId, task.id, data),
+            const SizedBox(height: 16),
+          ],
+          if (parents.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.message_rounded, color: AppColors.neutral500, size: 32),
+                    SizedBox(height: 12),
+                    Text('No comments yet.', style: TextStyle(color: AppColors.neutral400, fontSize: 13, fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    Text('Be the first to share your thoughts!', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
+                  ],
+                ),
               ),
-            ),
-          ),
+            )
+          else
+            ...parents.map((parent) {
+              final replies = repliesByParent[parent.id] ?? [];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCommentRow(parent, wsId ?? '', task.id, isReply: false),
+                    if (replies.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 40, top: 2),
+                        child: Column(
+                          children: replies.map((reply) => _buildCommentRow(reply, wsId ?? '', task.id, isReply: true)).toList(),
+                        ),
+                      ),
+                    if (_replyingToCommentId == parent.id)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 40, top: 6),
+                        child: _buildReplyComposer(wsId ?? '', task.id, parent.id, data),
+                      ),
+                  ],
+                ),
+              );
+            }),
         ],
       );
     } else if (_activityTabIndex == 1) {
@@ -603,15 +696,21 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     }
   }
 
-  Widget _buildCommentRow(TaskCommentEntity comment) {
+  Widget _buildCommentRow(TaskCommentEntity comment, String wsId, String taskId, {required bool isReply}) {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isOwner = comment.author.id == currentUserId;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.symmetric(vertical: isReply ? 6 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _MiniAvatar(
-            initials: comment.author.name.substring(0, 2),
+            initials: comment.author.name.isNotEmpty && comment.author.name.length >= 2 
+                ? comment.author.name.substring(0, 2) 
+                : (comment.author.name.isNotEmpty ? comment.author.name : '?'),
             avatarUrl: comment.author.avatar,
+            size: isReply ? 22 : 28,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -619,20 +718,346 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text(comment.author.name, style: const TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                    Text(
+                      comment.author.name,
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: isReply ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Text(DateFormat('MMM d').format(comment.createdAt), style: const TextStyle(color: AppColors.neutral500, fontSize: 12)),
+                    Text(
+                      DateFormat('MMM d').format(comment.createdAt),
+                      style: const TextStyle(color: AppColors.neutral500, fontSize: 11),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(comment.body, style: const TextStyle(color: AppColors.neutral300, fontSize: 14)),
+                Text(
+                  comment.body,
+                  style: TextStyle(
+                    color: AppColors.neutral300,
+                    fontSize: isReply ? 13 : 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    if (!isReply) ...[
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          setState(() {
+                            if (_replyingToCommentId == comment.id) {
+                              _replyingToCommentId = null;
+                              _replyController.clear();
+                            } else {
+                              _replyingToCommentId = comment.id;
+                              _replyController.text = '@${comment.author.name} ';
+                              _replyController.selection = TextSelection.collapsed(offset: _replyController.text.length);
+                              _pendingMentions.clear();
+                              _pendingMentions.add(comment.author.id);
+                            }
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            'Reply',
+                            style: TextStyle(
+                              color: _replyingToCommentId == comment.id ? AppColors.brandSoft : AppColors.neutral500,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (isOwner) const SizedBox(width: 16),
+                    ],
+                    if (isOwner)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          _dispatchUpdate(DeleteTaskCommentEvent(
+                            workstationId: wsId,
+                            taskId: taskId,
+                            commentId: comment.id,
+                          ));
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: AppColors.rose,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _checkMention(String text, TextEditingController controller, bool isReply) {
+    final selection = controller.selection;
+    if (selection.isValid && selection.isCollapsed) {
+      final cursorPosition = selection.baseOffset;
+      final textBeforeCursor = text.substring(0, cursorPosition);
+      
+      final atIndex = textBeforeCursor.lastIndexOf('@');
+      if (atIndex != -1 && (atIndex == 0 || textBeforeCursor[atIndex - 1] == ' ' || textBeforeCursor[atIndex - 1] == '\n')) {
+        final query = textBeforeCursor.substring(atIndex + 1);
+        if (!query.contains(' ')) {
+          setState(() {
+            _mentionQuery = query;
+            _isReplyingMention = isReply;
+          });
+          return;
+        }
+      }
+    }
+    setState(() {
+      _mentionQuery = null;
+    });
+  }
+
+  void _insertMention(TaskUserItemEntity member, TextEditingController controller) {
+    final text = controller.text;
+    final selection = controller.selection;
+    if (selection.isValid && selection.isCollapsed) {
+      final cursorPosition = selection.baseOffset;
+      final textBeforeCursor = text.substring(0, cursorPosition);
+      final atIndex = textBeforeCursor.lastIndexOf('@');
+      if (atIndex != -1) {
+        final textAfterCursor = text.substring(cursorPosition);
+        final replacement = '@${member.name} ';
+        
+        final newText = textBeforeCursor.substring(0, atIndex) + replacement + textAfterCursor;
+        controller.text = newText;
+        
+        final newCursorPosition = atIndex + replacement.length;
+        controller.selection = TextSelection.collapsed(offset: newCursorPosition);
+        
+        if (!_pendingMentions.contains(member.id)) {
+          _pendingMentions.add(member.id);
+        }
+      }
+    }
+    setState(() {
+      _mentionQuery = null;
+    });
+  }
+
+  Widget _buildReplyComposer(String wsId, String taskId, String parentId, TaskDetailEntity data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_mentionQuery != null && _isReplyingMention)
+          _buildMentionAutocomplete(data, _replyController),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141518),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF2C2D33)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _replyController,
+                maxLines: null,
+                minLines: 2,
+                style: const TextStyle(color: AppColors.white, fontSize: 13, height: 1.5),
+                onChanged: (val) => _checkMention(val, _replyController, true),
+                decoration: const InputDecoration(
+                  hintText: 'Write a reply... @ to mention',
+                  hintStyle: TextStyle(color: AppColors.neutral500, fontSize: 12),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(color: Color(0xFF2C2D33), height: 1, thickness: 1),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _CommentActionButton(
+                    text: 'Cancel',
+                    onTap: () {
+                      setState(() {
+                        _replyingToCommentId = null;
+                        _replyController.clear();
+                        _mentionQuery = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _CommentActionButton(
+                    text: 'Reply',
+                    isPrimary: true,
+                    onTap: () => _submitReply(wsId, taskId, parentId),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainComposer(String wsId, String taskId, TaskDetailEntity data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_mentionQuery != null && !_isReplyingMention)
+          _buildMentionAutocomplete(data, _commentController),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141518),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF2C2D33)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _commentController,
+                maxLines: null,
+                minLines: 2,
+                style: const TextStyle(color: AppColors.white, fontSize: 13, height: 1.5),
+                onChanged: (val) => _checkMention(val, _commentController, false),
+                decoration: const InputDecoration(
+                  hintText: 'Write a comment... @ to mention',
+                  hintStyle: TextStyle(color: AppColors.neutral500, fontSize: 13),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(color: Color(0xFF2C2D33), height: 1, thickness: 1),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _CommentActionButton(
+                    text: 'Comment',
+                    isPrimary: true,
+                    onTap: () => _submitComment(wsId, taskId),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMentionAutocomplete(TaskDetailEntity data, TextEditingController controller) {
+    final filteredMembers = data.metadata.members.where((m) {
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (m.id == currentUserId) return false;
+
+      final query = _mentionQuery!.toLowerCase();
+      final nameMatches = m.name.toLowerCase().contains(query);
+      final emailMatches = m.email != null && m.email!.toLowerCase().contains(query);
+      return nameMatches || emailMatches;
+    }).toList();
+
+    if (filteredMembers.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 140),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141518),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF2C2D33)),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: filteredMembers.length,
+        itemBuilder: (context, index) {
+          final member = filteredMembers[index];
+          return Material(
+            color: Colors.transparent,
+            child: ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              leading: _MiniAvatar(
+                initials: member.name.isNotEmpty && member.name.length >= 2 
+                    ? member.name.substring(0, 2) 
+                    : (member.name.isNotEmpty ? member.name : '?'),
+                avatarUrl: member.avatar,
+              ),
+              title: Text(member.name, style: const TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: member.email != null 
+                  ? Text(member.email!, style: const TextStyle(color: AppColors.neutral500, fontSize: 11))
+                  : null,
+              onTap: () => _insertMention(member, controller),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _submitComment(String wsId, String taskId) {
+    final body = _commentController.text.trim();
+    if (body.isEmpty) return;
+
+    _dispatchUpdate(AddTaskCommentEvent(
+      workstationId: wsId,
+      taskId: taskId,
+      body: body,
+      mentionedUserIds: _pendingMentions.toList(),
+    ));
+
+    _commentController.clear();
+    _pendingMentions.clear();
+    setState(() {
+      _mentionQuery = null;
+    });
+  }
+
+  void _submitReply(String wsId, String taskId, String parentId) {
+    final body = _replyController.text.trim();
+    if (body.isEmpty) return;
+
+    _dispatchUpdate(AddTaskCommentEvent(
+      workstationId: wsId,
+      taskId: taskId,
+      body: body,
+      mentionedUserIds: _pendingMentions.toList(),
+      parentId: parentId,
+    ));
+
+    _replyController.clear();
+    _pendingMentions.clear();
+    setState(() {
+      _replyingToCommentId = null;
+      _mentionQuery = null;
+    });
   }
 
   void _dispatchUpdate(TaskDetailEvent event) {
@@ -766,7 +1191,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 items: meta.statuses,
                 labelBuilder: (e) => e.label,
                 colorBuilder: (e) => _parseColor(e.color),
-                onSelected: (e) => _dispatchUpdate(UpdateTaskStatusEvent(workstationId: wsId, taskId: task.taskId, statusId: e.id)),
+                onSelected: (e) => _dispatchUpdate(UpdateTaskStatusEvent(workstationId: wsId, taskId: task.id, statusId: e.id)),
               );
             }
           },
@@ -784,7 +1209,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 items: meta.priorities,
                 labelBuilder: (e) => e.label,
                 colorBuilder: (e) => _parseColor(e.color),
-                onSelected: (e) => _dispatchUpdate(UpdateTaskPriorityEvent(workstationId: wsId, taskId: task.taskId, priorityId: e.id)),
+                onSelected: (e) => _dispatchUpdate(UpdateTaskPriorityEvent(workstationId: wsId, taskId: task.id, priorityId: e.id)),
               );
             }
           },
@@ -804,7 +1229,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             if (date != null && context.mounted) {
               final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
               if (wsId != null) {
-                _dispatchUpdate(UpdateTaskDueDateEvent(workstationId: wsId, taskId: task.taskId, dueDate: date));
+                _dispatchUpdate(UpdateTaskDueDateEvent(workstationId: wsId, taskId: task.id, dueDate: date));
               }
             }
           },
@@ -824,7 +1249,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 labelBuilder: (e) => e.name,
                 avatarUrlBuilder: (e) => e.avatar,
                 initialsBuilder: (e) => e.name.isNotEmpty ? e.name.substring(0, 2).toUpperCase() : 'U',
-                onSelected: (e) => _dispatchUpdate(UpdateTaskAssigneeEvent(workstationId: wsId, taskId: task.taskId, assigneeId: e.id)),
+                onSelected: (e) => _dispatchUpdate(UpdateTaskAssigneeEvent(workstationId: wsId, taskId: task.id, assigneeId: e.id)),
               );
             }
           },
@@ -844,7 +1269,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 labelBuilder: (e) => e.name,
                 avatarUrlBuilder: (e) => e.avatar,
                 initialsBuilder: (e) => e.name.isNotEmpty ? e.name.substring(0, 2).toUpperCase() : 'U',
-                onSelected: (e) => _dispatchUpdate(UpdateTaskReporterEvent(workstationId: wsId, taskId: task.taskId, reporterId: e.id)),
+                onSelected: (e) => _dispatchUpdate(UpdateTaskReporterEvent(workstationId: wsId, taskId: task.id, reporterId: e.id)),
               );
             }
           },
@@ -870,7 +1295,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 builder: (context) => _TagSelectionSheet(
                   selectedTags: task.tags,
                   allTags: meta.tags,
-                  onSave: (tagsList) => _dispatchUpdate(UpdateTaskTagsEvent(workstationId: wsId, taskId: task.taskId, tags: tagsList)),
+                  onSave: (tagsList) => _dispatchUpdate(UpdateTaskTagsEvent(workstationId: wsId, taskId: task.id, tags: tagsList)),
                 ),
               );
             }
@@ -910,7 +1335,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                             final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
                             if (wsId != null) {
                               final newTags = task.tags.where((e) => e.id != t.id).toList();
-                              _dispatchUpdate(UpdateTaskTagsEvent(workstationId: wsId, taskId: task.taskId, tags: newTags));
+                              _dispatchUpdate(UpdateTaskTagsEvent(workstationId: wsId, taskId: task.id, tags: newTags));
                             }
                           },
                           child: Icon(Icons.close_rounded, color: _parseColor(t.color).withOpacity(0.6), size: 12),
@@ -1123,6 +1548,84 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSaveStatus(bool isSaving) {
+    Widget child;
+    if (isSaving) {
+      child = Container(
+        key: const ValueKey('saving'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2638),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF2B3D54)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                color: Color(0xFF38BDF8),
+                strokeWidth: 1.5,
+              ),
+            ),
+            SizedBox(width: 6),
+            Text(
+              'Saving...',
+              style: TextStyle(
+                color: Color(0xFF38BDF8),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_showSaved) {
+      child = Container(
+        key: const ValueKey('saved'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF162E20),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF224A34)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_rounded, color: Color(0xFF4ADE80), size: 12),
+            SizedBox(width: 4),
+            Text(
+              'Saved',
+              style: TextStyle(
+                color: Color(0xFF4ADE80),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      child = const SizedBox.shrink(key: ValueKey('none'));
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: animation.drive(Tween(begin: 0.95, end: 1.0)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
     );
   }
 
@@ -1604,6 +2107,39 @@ class _DebouncedTextFieldState extends State<_DebouncedTextField> {
         border: InputBorder.none,
         isDense: true,
         contentPadding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _CommentActionButton extends StatelessWidget {
+  const _CommentActionButton({required this.text, required this.onTap, this.isPrimary = false});
+  final String text;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF38BDF8) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isPrimary ? const Color(0xFF38BDF8) : const Color(0xFF2C2D33),
+          ),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isPrimary ? const Color(0xFF0F172A) : AppColors.neutral300,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

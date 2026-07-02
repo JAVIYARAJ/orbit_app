@@ -48,4 +48,28 @@ class TaskRepositoryImpl implements TaskRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  ResultFuture<void> addTaskComment(String taskId, String body, List<String> mentionedUserIds, String? parentId) async {
+    try {
+      await _remoteDataSource.addTaskComment(taskId, body, mentionedUserIds, parentId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> deleteTaskComment(String commentId) async {
+    try {
+      await _remoteDataSource.deleteTaskComment(commentId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }
