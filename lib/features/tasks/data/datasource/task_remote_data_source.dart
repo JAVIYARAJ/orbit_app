@@ -9,10 +9,12 @@ import 'package:orbit_app/features/workspaces/data/models/workspace_member_model
 
 abstract interface class TaskRemoteDataSource {
   Future<TasksDataEntity> getWorkstationTasks(String workstationId);
+  Future<TaskModel> createTask(String workstationId, Map<String, dynamic> data);
   Future<TaskDetailModel> getTaskDetail(String workstationId, String taskId);
   Future<TaskDetailModel> updateTask(String taskId, Map<String, dynamic> data);
   Future<void> addTaskComment(String taskId, String body, List<String> mentionedUserIds, String? parentId);
   Future<void> deleteTaskComment(String commentId);
+  Future<void> deleteTask(String taskId);
 }
 
 class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
@@ -46,6 +48,22 @@ class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
         members: membersData.map((p) => WorkspaceMemberModel.fromJson(p as Map<String, dynamic>)).toList(),
         priorities: prioritiesList.map((p) => TaskPriorityModel.fromJson(p as Map<String, dynamic>)).toList(),
       );
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<TaskModel> createTask(String workstationId, Map<String, dynamic> data) async {
+    try {
+      final res = await _client.rpc<Map<String, dynamic>>(
+        'create_task',
+        params: {
+          'p_workstation_id': workstationId,
+          'p_data': data,
+        },
+      );
+      return TaskModel.fromJson(res);
     } catch (e) {
       throw ServerException(message: e.toString());
     }
@@ -107,6 +125,20 @@ class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
         'delete_task_comment',
         params: {
           'p_comment_id': commentId,
+        },
+      );
+    } catch (e) {
+      throw ServerException(message: e.toString());
+    }
+  }
+
+  @override
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _client.rpc<void>(
+        'soft_delete_task',
+        params: {
+          'p_task_id': taskId,
         },
       );
     } catch (e) {

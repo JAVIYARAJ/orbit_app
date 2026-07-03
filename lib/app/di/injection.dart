@@ -41,6 +41,9 @@ import 'package:orbit_app/features/tasks/domain/usecases/get_task_detail_use_cas
 import 'package:orbit_app/features/tasks/domain/usecases/update_task_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/add_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/delete_task_usecase.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/create_task_usecase.dart';
+import 'package:orbit_app/features/tasks/presentation/bloc/create_task_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_bloc.dart';
 import 'package:orbit_app/features/notifications/data/repositories/notifications_repository.dart';
@@ -52,6 +55,7 @@ import 'package:orbit_app/features/dashboard/domain/repositories/dashboard_repos
 import 'package:orbit_app/features/dashboard/domain/usecases/get_mobile_dashboard_use_case.dart';
 import 'package:orbit_app/core/services/project_metadata_service.dart';
 import 'package:orbit_app/core/services/analytics_service.dart';
+import 'package:orbit_app/core/services/task_metadata_service.dart';
 import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 /// Global service locator.
 final GetIt sl = GetIt.instance;
@@ -144,13 +148,20 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => UpdateTaskUseCase(sl()))
     ..registerFactory(() => AddTaskCommentUseCase(sl()))
     ..registerFactory(() => DeleteTaskCommentUseCase(sl()))
+    ..registerFactory(() => DeleteTaskUseCase(sl()))
+    ..registerFactory(() => CreateTaskUseCase(sl()))
     ..registerFactory(() => TasksBloc(sl()))
     ..registerFactory(() => TaskDetailBloc(
           getTaskDetailUseCase: sl(),
           updateTaskUseCase: sl(),
           addTaskCommentUseCase: sl(),
           deleteTaskCommentUseCase: sl(),
+          deleteTaskUseCase: sl(),
           analyticsService: sl(),
+        ))
+    ..registerFactory(() => CreateTaskBloc(
+          taskMetadataService: sl(),
+          createTaskUseCase: sl(),
         ))
     // ── Notifications ──────────────────────────────────────────────────────
     ..registerFactory(() => NotificationsRepository(sl()))
@@ -177,5 +188,6 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => FolderNotesCubit(sl()))
     // ── Core Services ──────────────────────────────────────────────────────
     ..registerLazySingleton(() => AnalyticsService())
+    ..registerLazySingleton(() => TaskMetadataService(sl()))
     ..registerLazySingleton(() => ProjectMetadataService(sl()));
 }

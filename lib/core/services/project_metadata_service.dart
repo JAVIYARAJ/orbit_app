@@ -80,7 +80,7 @@ class ProjectMetadataService {
         'github-proxy',
         body: {
           'path': '/user/repos',
-          'params': {},
+          'params': <Map<dynamic, dynamic>>{},
           'method': 'POST',
           'body': {
             'name': name,

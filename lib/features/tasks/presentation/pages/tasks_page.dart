@@ -9,6 +9,7 @@ import 'package:orbit_app/features/tasks/presentation/cubit/tasks_event.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_state.dart';
+import 'package:orbit_app/app/router/app_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -204,7 +205,15 @@ class _TasksViewState extends State<_TasksView> {
                           children: group.isEmpty 
                               ? [
                                   GestureDetector(
-                                    onTap: () {}, // Handle add task in status
+                                    onTap: () async {
+                                      final created = await context.push(AppRoutes.taskAdd, extra: state.tasks);
+                                      if (created == true) {
+                                        final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                                        if (wsId != null && context.mounted) {
+                                          context.read<TasksBloc>().add(FetchTasksEvent(wsId));
+                                        }
+                                      }
+                                    },
                                     behavior: HitTestBehavior.opaque,
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 8),
@@ -337,26 +346,37 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: AppColors.brand,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.add_rounded, color: AppColors.background, size: 16),
-                SizedBox(width: 6),
-                Text(
-                  'New task',
-                  style: TextStyle(
-                    color: AppColors.background,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+          GestureDetector(
+            onTap: () async {
+              final created = await context.push(AppRoutes.taskAdd, extra: context.read<TasksBloc>().state.tasks);
+              if (created == true) {
+                final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                if (wsId != null && context.mounted) {
+                  context.read<TasksBloc>().add(FetchTasksEvent(wsId));
+                }
+              }
+            },
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.brand,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.add_rounded, color: AppColors.background, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'New task',
+                    style: TextStyle(
+                      color: AppColors.background,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

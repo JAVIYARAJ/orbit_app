@@ -5,6 +5,7 @@ import 'package:orbit_app/core/utils/typedefs.dart';
 import 'package:orbit_app/features/tasks/data/datasource/task_remote_data_source.dart';
 import 'package:orbit_app/features/tasks/domain/entities/tasks_data_entity.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
 import 'package:orbit_app/features/tasks/domain/repositories/task_repository.dart';
 
 class TaskRepositoryImpl implements TaskRepository {
@@ -30,6 +31,18 @@ class TaskRepositoryImpl implements TaskRepository {
     try {
       final result = await _remoteDataSource.getTaskDetail(workstationId, taskId);
       return Right(result);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<TaskEntity> createTask(String workstationId, Map<String, dynamic> data) async {
+    try {
+      final result = await _remoteDataSource.createTask(workstationId, data);
+      return Right<Failure, TaskEntity>(result);
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message));
     } catch (e) {
@@ -65,6 +78,18 @@ class TaskRepositoryImpl implements TaskRepository {
   ResultFuture<void> deleteTaskComment(String commentId) async {
     try {
       await _remoteDataSource.deleteTaskComment(commentId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> deleteTask(String taskId) async {
+    try {
+      await _remoteDataSource.deleteTask(taskId);
       return const Right(null);
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message));

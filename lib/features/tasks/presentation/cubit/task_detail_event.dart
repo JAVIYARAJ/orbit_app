@@ -58,6 +58,21 @@ class UpdateTaskReporterEvent extends TaskDetailEvent {
   @override List<Object?> get props => [workstationId, taskId, reporterId];
 }
 
+class UpdateTaskBranchEvent extends TaskDetailEvent {
+  const UpdateTaskBranchEvent({required this.workstationId, required this.taskId, required this.branch});
+  final String workstationId;
+  final String taskId;
+  final String branch;
+  @override List<Object?> get props => [workstationId, taskId, branch];
+}
+
+class DeleteTaskEvent extends TaskDetailEvent {
+  const DeleteTaskEvent({required this.workstationId, required this.taskId});
+  final String workstationId;
+  final String taskId;
+  @override List<Object?> get props => [workstationId, taskId];
+}
+
 class UpdateTaskTagsEvent extends TaskDetailEvent {
   const UpdateTaskTagsEvent({required this.workstationId, required this.taskId, required this.tags});
   final String workstationId;

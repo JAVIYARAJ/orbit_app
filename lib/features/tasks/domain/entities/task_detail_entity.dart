@@ -106,6 +106,7 @@ class TaskDetailDataEntity extends Equatable {
     num? estimateMinutes,
     List<TaskTagItemEntity>? tags,
     String? branchName,
+    bool clearBranchName = false,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -124,7 +125,7 @@ class TaskDetailDataEntity extends Equatable {
       loggedMinutes: loggedMinutes ?? this.loggedMinutes,
       estimateMinutes: estimateMinutes ?? this.estimateMinutes,
       tags: tags ?? this.tags,
-      branchName: branchName ?? this.branchName,
+      branchName: clearBranchName ? null : (branchName ?? this.branchName),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

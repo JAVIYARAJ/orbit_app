@@ -8,6 +8,7 @@ import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_event.da
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_state.dart';
 import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit.dart';
 import 'package:orbit_app/app/di/injection.dart';
+import 'package:orbit_app/core/services/task_metadata_service.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -63,8 +64,12 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TaskDetailBloc, TaskDetailState>(
-      listenWhen: (prev, current) => prev.isSaving != current.isSaving,
+      listenWhen: (prev, current) => prev.isSaving != current.isSaving || prev.isDeleted != current.isDeleted,
       listener: (context, state) {
+        if (state.isDeleted) {
+          context.pop(true);
+          return;
+        }
         if (state.isSaving) {
           _didChange = true;
           _savedTimer?.cancel();
@@ -121,7 +126,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               children: [
                 _Badge(task.taskId),
                 const SizedBox(width: 8),
-                if (task.project != null) _Badge(task.project!.name),
+                if (task.project != null) Flexible(child: _Badge(task.project!.name)),
               ],
             ),
             actions: [
@@ -218,7 +223,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     _buildTimeAndProgress(task),
                     const SizedBox(height: 24),
 
-                    _buildBranch(task),
+                    _BranchSectionWidget(task: task),
+                    _DeleteTaskSection(task: task),
                   ],
                 ),
               ),
@@ -1475,82 +1481,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildBranch(TaskDetailDataEntity task) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionTitle('BRANCH'),
-        const SizedBox(height: 8),
-        if (task.branchName != null && task.branchName!.isNotEmpty) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF1E293B)),
-            ),
-            child: Text(task.branchName!, style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontFamily: 'monospace')),
-          ),
-          const SizedBox(height: 12),
-        ],
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141518),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF2C2D33)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral500, size: 20),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.call_split_rounded, color: AppColors.neutral400, size: 18),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Switch to existing branch', style: TextStyle(color: AppColors.neutral300, fontSize: 14)),
-                        const SizedBox(height: 2),
-                        Text(task.project != null ? 'JAVIYARAJ/${task.project!.name.toLowerCase().replaceAll(' ', '_')}' : 'Repository', style: const TextStyle(color: AppColors.neutral500, fontSize: 12, fontFamily: 'monospace')),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 44, top: 8, bottom: 8),
-                child: Text('feat/account-deletion-required-by-both-stores', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontFamily: 'monospace')),
-              ),
-              const Divider(color: Color(0xFF2C2D33), height: 32),
-              Row(
-                children: [
-                  const Icon(Icons.check_box_outline_blank_rounded, color: AppColors.neutral500, size: 20),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.add_circle_outline_rounded, color: AppColors.neutral400, size: 18),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Create a new branch', style: TextStyle(color: AppColors.neutral300, fontSize: 14)),
-                        const SizedBox(height: 2),
-                        Text(task.project != null ? 'JAVIYARAJ/${task.project!.name.toLowerCase().replaceAll(' ', '_')}' : 'Repository', style: const TextStyle(color: AppColors.neutral500, fontSize: 12, fontFamily: 'monospace')),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSaveStatus(bool isSaving) {
     Widget child;
     if (isSaving) {
@@ -1659,6 +1589,47 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, String taskId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1F24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFF2C2D33))),
+          title: const Text('Delete Task', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+          content: const Text(
+            'Are you sure you want to delete this task? This cannot be undone.',
+            style: TextStyle(color: AppColors.neutral300, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.neutral300)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                if (wsId != null) {
+                  context.read<TaskDetailBloc>().add(
+                    DeleteTaskEvent(workstationId: wsId, taskId: taskId),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1775,7 +1746,7 @@ class _Badge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: const Color(0xFF2C2D33)),
       ),
-      child: Text(text, style: const TextStyle(color: AppColors.neutral400, fontSize: 12, fontFamily: 'monospace')),
+      child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.neutral400, fontSize: 12, fontFamily: 'monospace')),
     );
   }
 }
@@ -2141,6 +2112,475 @@ class _CommentActionButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BranchSectionWidget extends StatefulWidget {
+  const _BranchSectionWidget({required this.task});
+  final TaskDetailDataEntity task;
+
+  @override
+  State<_BranchSectionWidget> createState() => _BranchSectionWidgetState();
+}
+
+class _BranchSectionWidgetState extends State<_BranchSectionWidget> {
+  bool _isSwitchExpanded = false;
+  bool _isCreateExpanded = false;
+  
+  bool _isLoadingBranches = false;
+  bool _isCreatingBranch = false;
+  List<dynamic> _branches = [];
+  String? _selectedBranch;
+  
+  final _newBranchController = TextEditingController();
+
+  String get _repoFullName {
+    if (widget.task.project != null) {
+      return 'JAVIYARAJ/${widget.task.project!.name.toLowerCase().replaceAll(' ', '_')}';
+    }
+    return 'Repository';
+  }
+
+  void _fetchBranches() async {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    if (wsId == null || _repoFullName == 'Repository') return;
+    
+    setState(() => _isLoadingBranches = true);
+    try {
+      final branches = await sl<TaskMetadataService>().getGithubBranches(wsId, _repoFullName);
+      if (mounted) {
+        setState(() {
+          _branches = branches;
+          _isLoadingBranches = false;
+          if (_branches.isNotEmpty && _selectedBranch == null) {
+            _selectedBranch = _branches.first['name'] as String;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingBranches = false);
+    }
+  }
+
+  Future<void> _dispatchBranchUpdate(String action, String? branchName) async {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    if (wsId != null) {
+      if (action == 'create' && branchName != null) {
+        try {
+          await sl<TaskMetadataService>().createGithubBranch(wsId, _repoFullName, branchName);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(e.toString().replaceAll('ServerException: ', '')),
+              backgroundColor: const Color(0xFFEF4444),
+            ));
+          }
+          return;
+        }
+      }
+
+      final payload = {
+        'action': action,
+      };
+      if (branchName != null) {
+        payload['branch'] = branchName;
+      }
+      context.read<TaskDetailBloc>().add(
+        UpdateTaskBranchEvent(
+          workstationId: wsId,
+          taskId: widget.task.id,
+          branch: branchName ?? '',
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _newBranchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBranch = widget.task.branchName != null && widget.task.branchName!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('BRANCH'),
+        const SizedBox(height: 8),
+        if (hasBranch) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF1E293B)),
+            ),
+            child: Text(widget.task.branchName!, style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontFamily: 'monospace')),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF141518),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF2C2D33)),
+          ),
+          child: Column(
+            children: [
+              // Switch Branch Option
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isSwitchExpanded = !_isSwitchExpanded;
+                    if (_isSwitchExpanded) {
+                      _isCreateExpanded = false;
+                      _fetchBranches();
+                    }
+                  });
+                },
+                borderRadius: _isCreateExpanded ? const BorderRadius.vertical(top: Radius.circular(8)) : BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Icon(_isSwitchExpanded ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, color: _isSwitchExpanded ? const Color(0xFF38BDF8) : AppColors.neutral500, size: 20),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.call_split_rounded, color: AppColors.neutral400, size: 18),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Switch to existing branch', style: TextStyle(color: AppColors.neutral300, fontSize: 14)),
+                            const SizedBox(height: 2),
+                            Text(_repoFullName, style: const TextStyle(color: AppColors.neutral500, fontSize: 12, fontFamily: 'monospace')),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_isSwitchExpanded)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(44, 0, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('SELECT BRANCH', style: TextStyle(color: AppColors.neutral500, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+                      const SizedBox(height: 8),
+                      if (_isLoadingBranches)
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF38BDF8))),
+                        )
+                      else if (_branches.isEmpty)
+                        const Text('No branches found', style: TextStyle(color: AppColors.neutral500, fontSize: 13))
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1F24),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF2C2D33)),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: _selectedBranch,
+                              dropdownColor: const Color(0xFF1E1F24),
+                              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.neutral400),
+                              style: const TextStyle(color: AppColors.white, fontSize: 13, fontFamily: 'monospace'),
+                              items: _branches.map((b) {
+                                final branchName = b['name'] as String;
+                                return DropdownMenuItem<String>(
+                                  value: branchName,
+                                  child: Text(branchName),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) setState(() => _selectedBranch = val);
+                              },
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => setState(() => _isSwitchExpanded = false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.neutral300,
+                              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: _selectedBranch != null ? () {
+                              _dispatchBranchUpdate('connect', _selectedBranch);
+                              setState(() => _isSwitchExpanded = false);
+                            } : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0099FF),
+                              foregroundColor: AppColors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+                              minimumSize: const Size(0, 36),
+                            ),
+                            child: const Text('Save', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              const Divider(color: Color(0xFF2C2D33), height: 1),
+              
+              // Create Branch Option
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isCreateExpanded = !_isCreateExpanded;
+                    if (_isCreateExpanded) {
+                      _isSwitchExpanded = false;
+                    }
+                  });
+                },
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Icon(_isCreateExpanded ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, color: _isCreateExpanded ? const Color(0xFF38BDF8) : AppColors.neutral500, size: 20),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.call_split_rounded, color: AppColors.neutral400, size: 18),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Create a new branch', style: TextStyle(color: AppColors.neutral300, fontSize: 14)),
+                            const SizedBox(height: 2),
+                            Text(_repoFullName, style: const TextStyle(color: AppColors.neutral500, fontSize: 12, fontFamily: 'monospace')),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_isCreateExpanded)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(44, 0, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('BRANCH NAME', style: TextStyle(color: AppColors.neutral500, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1F24),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF38BDF8)),
+                        ),
+                        child: TextField(
+                          controller: _newBranchController,
+                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontFamily: 'monospace'),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'e.g. feat/new-feature',
+                            hintStyle: TextStyle(color: AppColors.neutral600),
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => setState(() => _isCreateExpanded = false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.neutral300,
+                              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: _isCreatingBranch ? null : () async {
+                              final name = _newBranchController.text.trim();
+                              if (name.isNotEmpty) {
+                                setState(() => _isCreatingBranch = true);
+                                await _dispatchBranchUpdate('create', name);
+                                if (mounted) {
+                                  setState(() {
+                                    _isCreatingBranch = false;
+                                    _isCreateExpanded = false;
+                                    _newBranchController.clear();
+                                  });
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0099FF),
+                              foregroundColor: AppColors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+                              minimumSize: const Size(0, 36),
+                            ),
+                            child: _isCreatingBranch 
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white))
+                                : const Text('Create', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        
+        if (hasBranch) ...[
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: () {
+              _dispatchBranchUpdate('disconnect', null);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141518),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF2C2D33)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.link_off_rounded, color: Color(0xFFEF4444), size: 18),
+                  SizedBox(width: 12),
+                  Text('Disconnect branch', style: TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DeleteTaskSection extends StatefulWidget {
+  const _DeleteTaskSection({required this.task});
+  final TaskDetailDataEntity task;
+
+  @override
+  State<_DeleteTaskSection> createState() => _DeleteTaskSectionState();
+}
+
+class _DeleteTaskSectionState extends State<_DeleteTaskSection> {
+  bool _showConfirm = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Divider(color: Color(0xFF2C2D33), height: 1),
+        const SizedBox(height: 24),
+        if (!_showConfirm)
+          InkWell(
+            onTap: () => setState(() => _showConfirm = true),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0x40EF4444)),
+              ),
+              alignment: Alignment.center,
+              child: const Text('Delete task', style: TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Delete this task?', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              const Text(
+                'This action cannot be undone. All subtasks and time logs will also be removed.',
+                style: TextStyle(color: AppColors.neutral400, fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _showConfirm = false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.white,
+                        side: const BorderSide(color: AppColors.borderCard),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
+                      builder: (context, state) {
+                        return ElevatedButton(
+                          onPressed: state.isSaving
+                              ? null
+                              : () {
+                                  final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                                  if (wsId != null) {
+                                    context.read<TaskDetailBloc>().add(
+                                      DeleteTaskEvent(workstationId: wsId, taskId: widget.task.taskId),
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text(state.isSaving ? 'Deleting...' : 'Confirm delete', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        );
+                      }
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        
+        if (widget.task.createdAt != null) ...[
+          const SizedBox(height: 32),
+          const Text('CREATED', style: TextStyle(color: AppColors.neutral400, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          const SizedBox(height: 12),
+          Text(
+            DateFormat('MMM dd, yyyy').format(widget.task.createdAt!),
+            style: const TextStyle(color: AppColors.neutral400, fontSize: 13, fontFamily: 'monospace'),
+          ),
+        ]
+      ],
     );
   }
 }

@@ -20,6 +20,9 @@ import 'package:orbit_app/features/projects/presentation/pages/create_project_pa
 import 'package:orbit_app/features/projects/domain/entities/project_entity.dart';
 import 'package:orbit_app/features/tasks/presentation/pages/task_detail_page.dart';
 import 'package:orbit_app/features/tasks/presentation/pages/tasks_page.dart';
+import 'package:orbit_app/features/tasks/presentation/pages/create_task_page.dart';
+import 'package:orbit_app/features/tasks/presentation/bloc/create_task_bloc.dart';
+import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
 import 'package:orbit_app/features/utilities/presentation/pages/utilities_page.dart';
 import 'package:orbit_app/features/secrets/presentation/pages/secrets_page.dart';
 import 'package:orbit_app/features/profile/presentation/pages/profile_page.dart';
@@ -40,6 +43,7 @@ abstract class AppRoutes {
   static const String projectAdd = '/projects/add';
   static const String projectDetail = '/projects/detail';
   static const String tasks = '/tasks';
+  static const String taskAdd = '/tasks/add';
   static const String taskDetail = '/tasks/detail';
   static const String notes = '/notes';
   static const String noteDetail = '/notes/detail';
@@ -170,6 +174,16 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
                   name: 'taskDetail',
                   builder: (context, state) => TaskDetailPage(
                     taskId: state.pathParameters['taskId']!,
+                  ),
+                ),
+                GoRoute(
+                  path: 'add',
+                  name: 'taskAdd',
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => sl<CreateTaskBloc>(),
+                    child: CreateTaskPage(
+                      tasks: state.extra as List<TaskEntity>? ?? [],
+                    ),
                   ),
                 ),
               ],

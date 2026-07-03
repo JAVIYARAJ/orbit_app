@@ -3,6 +3,7 @@ import 'package:orbit_app/features/tasks/domain/usecases/get_task_detail_use_cas
 import 'package:orbit_app/features/tasks/domain/usecases/update_task_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/add_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/delete_task_usecase.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_event.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_state.dart';
@@ -14,11 +15,13 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     required UpdateTaskUseCase updateTaskUseCase,
     required AddTaskCommentUseCase addTaskCommentUseCase,
     required DeleteTaskCommentUseCase deleteTaskCommentUseCase,
+    required DeleteTaskUseCase deleteTaskUseCase,
     required AnalyticsService analyticsService,
   })  : _getTaskDetailUseCase = getTaskDetailUseCase,
         _updateTaskUseCase = updateTaskUseCase,
         _addTaskCommentUseCase = addTaskCommentUseCase,
         _deleteTaskCommentUseCase = deleteTaskCommentUseCase,
+        _deleteTaskUseCase = deleteTaskUseCase,
         _analyticsService = analyticsService,
         super(const TaskDetailState()) {
     on<FetchTaskDetailEvent>(_onFetchTaskDetail);
@@ -30,14 +33,17 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     on<UpdateTaskTagsEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'tags_entities': e.tags}, emit));
     on<UpdateTaskTitleEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'title': e.title}, emit));
     on<UpdateTaskDescriptionEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'description': e.description}, emit));
+    on<UpdateTaskBranchEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'gh_branch': e.branch}, emit));
     on<AddTaskCommentEvent>(_onAddTaskComment);
     on<DeleteTaskCommentEvent>(_onDeleteTaskComment);
+    on<DeleteTaskEvent>(_onDeleteTask);
   }
 
   final GetTaskDetailUseCase _getTaskDetailUseCase;
   final UpdateTaskUseCase _updateTaskUseCase;
   final AddTaskCommentUseCase _addTaskCommentUseCase;
   final DeleteTaskCommentUseCase _deleteTaskCommentUseCase;
+  final DeleteTaskUseCase _deleteTaskUseCase;
   final AnalyticsService _analyticsService;
 
   Future<void> _onFetchTaskDetail(
@@ -242,6 +248,18 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
           )),
         );
       },
+    );
+  }
+
+  Future<void> _onDeleteTask(
+    DeleteTaskEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isSaving: true));
+    final result = await _deleteTaskUseCase(event.taskId);
+    result.fold(
+      (failure) => emit(state.copyWith(isSaving: false, errorMessage: failure.message)),
+      (_) => emit(state.copyWith(isSaving: false, isDeleted: true)),
     );
   }
 }

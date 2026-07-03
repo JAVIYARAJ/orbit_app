@@ -9,27 +9,31 @@ class TaskDetailState extends Equatable {
     this.taskDetail,
     this.errorMessage,
     this.isSaving = false,
+    this.isDeleted = false,
   });
 
   final TaskDetailStatus status;
   final TaskDetailEntity? taskDetail;
   final String? errorMessage;
   final bool isSaving;
+  final bool isDeleted;
 
   TaskDetailState copyWith({
     TaskDetailStatus? status,
     TaskDetailEntity? taskDetail,
     String? errorMessage,
     bool? isSaving,
+    bool? isDeleted,
   }) {
     return TaskDetailState(
       status: status ?? this.status,
       taskDetail: taskDetail ?? this.taskDetail,
       errorMessage: errorMessage ?? this.errorMessage,
       isSaving: isSaving ?? this.isSaving,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
   @override
-  List<Object?> get props => [status, taskDetail, errorMessage, isSaving];
+  List<Object?> get props => [status, taskDetail, errorMessage, isSaving, isDeleted];
 }
