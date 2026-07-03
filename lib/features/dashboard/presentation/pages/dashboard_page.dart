@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:feature_gate_pro/feature_gate_pro.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -86,14 +85,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SliverToBoxAdapter(child: _ActionButtonsRow()),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     SliverToBoxAdapter(
-                      child: FeatureFlagWidget(
-                        defaultValue: true,
-                        flagKey: "dashboard_timer_tracker",
-                        fallback: const SizedBox(),
-                        child: _TelemetryGrid(
-                          stats: data.quickStats,
-                          timeTracker: data.timeTracker,
-                        ),
+                      child: _TelemetryGrid(
+                        stats: data.quickStats,
+                        timeTracker: data.timeTracker,
                       ),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: 32)),

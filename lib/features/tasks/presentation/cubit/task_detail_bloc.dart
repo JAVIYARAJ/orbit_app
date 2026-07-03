@@ -6,6 +6,7 @@ import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_event.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_state.dart';
+import 'package:orbit_app/core/services/analytics_service.dart';
 
 class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   TaskDetailBloc({
@@ -13,10 +14,12 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     required UpdateTaskUseCase updateTaskUseCase,
     required AddTaskCommentUseCase addTaskCommentUseCase,
     required DeleteTaskCommentUseCase deleteTaskCommentUseCase,
+    required AnalyticsService analyticsService,
   })  : _getTaskDetailUseCase = getTaskDetailUseCase,
         _updateTaskUseCase = updateTaskUseCase,
         _addTaskCommentUseCase = addTaskCommentUseCase,
         _deleteTaskCommentUseCase = deleteTaskCommentUseCase,
+        _analyticsService = analyticsService,
         super(const TaskDetailState()) {
     on<FetchTaskDetailEvent>(_onFetchTaskDetail);
     on<UpdateTaskStatusEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'status_id': e.statusId}, emit));
@@ -35,6 +38,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   final UpdateTaskUseCase _updateTaskUseCase;
   final AddTaskCommentUseCase _addTaskCommentUseCase;
   final DeleteTaskCommentUseCase _deleteTaskCommentUseCase;
+  final AnalyticsService _analyticsService;
 
   Future<void> _onFetchTaskDetail(
     FetchTaskDetailEvent event,
@@ -52,10 +56,13 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         status: TaskDetailStatus.failure,
         errorMessage: failure.message,
       )),
-      (data) => emit(state.copyWith(
-        status: TaskDetailStatus.success,
-        taskDetail: data,
-      )),
+      (data) {
+        _analyticsService.logOpenTask(taskId: event.taskId, projectId: data.task.project?.id ?? '');
+        emit(state.copyWith(
+          status: TaskDetailStatus.success,
+          taskDetail: data,
+        ));
+      },
     );
   }
 
@@ -143,6 +150,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
         ));
       },
       (updateData) async {
+        _analyticsService.logUpdateTask(taskId: taskId);
         // Fetch fresh task details
         final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
           workstationId: workstationId,

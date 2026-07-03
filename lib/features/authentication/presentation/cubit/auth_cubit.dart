@@ -8,6 +8,7 @@ import 'package:orbit_app/features/authentication/domain/usecases/login_use_case
 import 'package:orbit_app/features/authentication/domain/usecases/login_with_google_use_case.dart';
 import 'package:orbit_app/features/authentication/domain/usecases/logout_use_case.dart';
 import 'package:orbit_app/features/authentication/presentation/state/auth_state.dart';
+import 'package:orbit_app/core/services/analytics_service.dart';
 
 /// Owns the authentication state for the whole app and exposes the login,
 /// Google, and logout actions used by the UI.
@@ -18,10 +19,12 @@ class AuthCubit extends Cubit<AuthState> {
     required LogoutUseCase logout,
     required GetCurrentUserUseCase getCurrentUser,
     required AuthRepository repository,
+    required AnalyticsService analyticsService,
   })  : _login = login,
         _loginWithGoogle = loginWithGoogle,
         _logout = logout,
         _getCurrentUser = getCurrentUser,
+        _analyticsService = analyticsService,
         super(const AuthState.unknown()) {
     // React to session changes from any source — password login, OAuth
     // deep-link return, token refresh, or sign-out.
@@ -35,6 +38,7 @@ class AuthCubit extends Cubit<AuthState> {
   final LoginWithGoogleUseCase _loginWithGoogle;
   final LogoutUseCase _logout;
   final GetCurrentUserUseCase _getCurrentUser;
+  final AnalyticsService _analyticsService;
 
   late final StreamSubscription<UserEntity?> _authSub;
 
@@ -51,6 +55,8 @@ class AuthCubit extends Cubit<AuthState> {
 
   void _onAuthChanged(UserEntity? user) {
     if (user != null) {
+      _analyticsService.setUserId(user.id);
+      _analyticsService.setUserEmail(user.email);
       emit(
         state.copyWith(
           status: AuthStatus.authenticated,
@@ -80,7 +86,9 @@ class AuthCubit extends Cubit<AuthState> {
           emit(state.copyWith(isSubmitting: false, errorMessage: failure.message)),
       // On success the auth stream emits the user and flips status; nothing to
       // do here beyond letting that listener run.
-      (_) {},
+      (_) {
+        _analyticsService.logLogin(loginMethod: 'email');
+      },
     );
   }
 
@@ -92,12 +100,16 @@ class AuthCubit extends Cubit<AuthState> {
           emit(state.copyWith(isSubmitting: false, errorMessage: failure.message)),
       // On success the auth stream flips status to authenticated. Stop the
       // spinner here too, which also covers the user dismissing the picker.
-      (_) => emit(state.copyWith(isSubmitting: false)),
+      (_) {
+        _analyticsService.logLogin(loginMethod: 'google');
+        emit(state.copyWith(isSubmitting: false));
+      },
     );
   }
 
   Future<void> logout() async {
     await _logout();
+    await _analyticsService.logLogout();
     // Status flips to unauthenticated via the auth stream listener.
   }
 

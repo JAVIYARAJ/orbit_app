@@ -3,20 +3,24 @@ import 'package:orbit_app/features/projects/domain/repositories/project_reposito
 import 'package:orbit_app/features/projects/domain/usecases/delete_project_use_case.dart';
 import 'package:orbit_app/features/projects/domain/usecases/delete_github_repo_use_case.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/project_detail_state.dart';
+import 'package:orbit_app/core/services/analytics_service.dart';
 
 class ProjectDetailCubit extends Cubit<ProjectDetailState> {
   ProjectDetailCubit({
     required ProjectRepository repository,
     required DeleteProjectUseCase deleteProject,
     required DeleteGithubRepoUseCase deleteGithubRepo,
+    required AnalyticsService analyticsService,
   })  : _repository = repository,
         _deleteProject = deleteProject,
         _deleteGithubRepo = deleteGithubRepo,
+        _analyticsService = analyticsService,
         super(const ProjectDetailState());
 
   final ProjectRepository _repository;
   final DeleteProjectUseCase _deleteProject;
   final DeleteGithubRepoUseCase _deleteGithubRepo;
+  final AnalyticsService _analyticsService;
 
   Future<void> deleteProject(
     String projectId, {
@@ -36,6 +40,7 @@ class ProjectDetailCubit extends Cubit<ProjectDetailState> {
         ));
       },
       (_) async {
+        _analyticsService.logDeleteProject(projectId: projectId);
         // If repoFullName and workstationId are provided, delete the GitHub repository
         if (workstationId != null && repoFullName != null) {
           final repoResult = await _deleteGithubRepo(
@@ -75,6 +80,7 @@ class ProjectDetailCubit extends Cubit<ProjectDetailState> {
         errorMessage: failure.message,
       )),
       (project) async {
+        _analyticsService.logOpenProject(projectId: projectId);
         emit(state.copyWith(
           status: ProjectDetailStatus.success,
           project: project,

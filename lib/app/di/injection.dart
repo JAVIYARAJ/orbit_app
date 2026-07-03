@@ -51,6 +51,7 @@ import 'package:orbit_app/features/dashboard/data/repositories/dashboard_reposit
 import 'package:orbit_app/features/dashboard/domain/repositories/dashboard_repository.dart';
 import 'package:orbit_app/features/dashboard/domain/usecases/get_mobile_dashboard_use_case.dart';
 import 'package:orbit_app/core/services/project_metadata_service.dart';
+import 'package:orbit_app/core/services/analytics_service.dart';
 import 'package:orbit_app/features/dashboard/presentation/cubit/dashboard_cubit.dart';
 /// Global service locator.
 final GetIt sl = GetIt.instance;
@@ -86,6 +87,7 @@ Future<void> configureDependencies() async {
         logout: sl(),
         getCurrentUser: sl(),
         repository: sl(),
+        analyticsService: sl(),
       ),
     )
     // ── Workspaces ─────────────────────────────────────────────────────────
@@ -118,8 +120,18 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => CreateProjectUseCase(sl()))
     ..registerFactory(() => UpdateProjectUseCase(sl()))
     ..registerFactory(() => ProjectsBloc(sl()))
-    ..registerFactory(() => CreateProjectBloc(metadataService: sl(), createProjectUseCase: sl(), updateProjectUseCase: sl()))
-    ..registerFactory(() => ProjectDetailCubit(repository: sl(), deleteProject: sl(), deleteGithubRepo: sl()))
+    ..registerFactory(() => CreateProjectBloc(
+          metadataService: sl(),
+          createProjectUseCase: sl(),
+          updateProjectUseCase: sl(),
+          analyticsService: sl(),
+        ))
+    ..registerFactory(() => ProjectDetailCubit(
+          repository: sl(),
+          deleteProject: sl(),
+          deleteGithubRepo: sl(),
+          analyticsService: sl(),
+        ))
     // ── Tasks ──────────────────────────────────────────────────────────────
     ..registerFactory<TaskRemoteDataSource>(
       () => TaskRemoteDataSourceImpl(sl()),
@@ -138,6 +150,7 @@ Future<void> configureDependencies() async {
           updateTaskUseCase: sl(),
           addTaskCommentUseCase: sl(),
           deleteTaskCommentUseCase: sl(),
+          analyticsService: sl(),
         ))
     // ── Notifications ──────────────────────────────────────────────────────
     ..registerFactory(() => NotificationsRepository(sl()))
@@ -163,5 +176,6 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => NoteFoldersCubit(sl()))
     ..registerFactory(() => FolderNotesCubit(sl()))
     // ── Core Services ──────────────────────────────────────────────────────
+    ..registerLazySingleton(() => AnalyticsService())
     ..registerLazySingleton(() => ProjectMetadataService(sl()));
 }

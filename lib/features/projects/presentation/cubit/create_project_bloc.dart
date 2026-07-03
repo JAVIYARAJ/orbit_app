@@ -4,15 +4,18 @@ import 'package:orbit_app/features/projects/domain/usecases/create_project_use_c
 import 'package:orbit_app/features/projects/domain/usecases/update_project_use_case.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/create_project_event.dart';
 import 'package:orbit_app/features/projects/presentation/cubit/create_project_state.dart';
+import 'package:orbit_app/core/services/analytics_service.dart';
 
 class CreateProjectBloc extends Bloc<CreateProjectEvent, CreateProjectState> {
   CreateProjectBloc({
     required ProjectMetadataService metadataService,
     required CreateProjectUseCase createProjectUseCase,
     required UpdateProjectUseCase updateProjectUseCase,
+    required AnalyticsService analyticsService,
   })  : _metadataService = metadataService,
         _createProjectUseCase = createProjectUseCase,
         _updateProjectUseCase = updateProjectUseCase,
+        _analyticsService = analyticsService,
         super(const CreateProjectState()) {
     on<FetchMetadataEvent>(_onFetchMetadata);
     on<InitEditProjectEvent>(_onInitEditProject);
@@ -24,6 +27,7 @@ class CreateProjectBloc extends Bloc<CreateProjectEvent, CreateProjectState> {
   final ProjectMetadataService _metadataService;
   final CreateProjectUseCase _createProjectUseCase;
   final UpdateProjectUseCase _updateProjectUseCase;
+  final AnalyticsService _analyticsService;
 
   Future<void> _onFetchMetadata(FetchMetadataEvent event, Emitter<CreateProjectState> emit) async {
     emit(state.copyWith(isLoading: true));
@@ -191,7 +195,14 @@ class CreateProjectBloc extends Bloc<CreateProjectEvent, CreateProjectState> {
 
       result.fold(
         (l) => emit(state.copyWith(error: l.message, isSubmitting: false)),
-        (r) => emit(state.copyWith(isSuccess: true, isSubmitting: false)),
+        (r) {
+          emit(state.copyWith(isSuccess: true, isSubmitting: false));
+          if (state.isEdit && state.editProjectId != null) {
+            _analyticsService.logUpdateProject(projectId: state.editProjectId!);
+          } else {
+            _analyticsService.logCreateProject(projectId: shortId, projectName: name);
+          }
+        },
       );
     } catch (e) {
       emit(state.copyWith(error: 'Failed to ${state.isEdit ? 'update' : 'create'} project', isSubmitting: false));

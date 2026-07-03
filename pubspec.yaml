@@ -22,7 +22,6 @@ dependencies:
   timeago: ^3.7.1
   url_launcher: ^6.3.2
   cached_network_image: ^3.4.1
-  feature_gate_pro: ^1.0.1
   firebase_remote_config: ^6.5.3
   firebase_core: ^4.11.0
   firebase_analytics: ^12.4.3
@@ -37,4 +36,3 @@ flutter:
 
   assets:
     - .env
-    - assets/flags/feature_flag.json
