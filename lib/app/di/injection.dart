@@ -43,6 +43,11 @@ import 'package:orbit_app/features/tasks/domain/usecases/add_task_comment_use_ca
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_usecase.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/create_task_usecase.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/log_manual_time_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/upload_task_attachment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/delete_task_attachment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/get_project_tasks_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/get_notes_for_linking_use_case.dart';
 import 'package:orbit_app/features/tasks/presentation/bloc/create_task_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/tasks_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_bloc.dart';
@@ -150,6 +155,11 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => DeleteTaskCommentUseCase(sl()))
     ..registerFactory(() => DeleteTaskUseCase(sl()))
     ..registerFactory(() => CreateTaskUseCase(sl()))
+    ..registerFactory(() => LogManualTimeUseCase(sl()))
+    ..registerFactory(() => UploadTaskAttachmentUseCase(sl()))
+    ..registerFactory(() => DeleteTaskAttachmentUseCase(sl()))
+    ..registerFactory(() => GetProjectTasksUseCase(sl()))
+    ..registerFactory(() => GetNotesForLinkingUseCase(sl()))
     ..registerFactory(() => TasksBloc(sl()))
     ..registerFactory(() => TaskDetailBloc(
           getTaskDetailUseCase: sl(),
@@ -157,6 +167,11 @@ Future<void> configureDependencies() async {
           addTaskCommentUseCase: sl(),
           deleteTaskCommentUseCase: sl(),
           deleteTaskUseCase: sl(),
+          logManualTimeUseCase: sl(),
+          uploadTaskAttachmentUseCase: sl(),
+          deleteTaskAttachmentUseCase: sl(),
+          getProjectTasksUseCase: sl(),
+          getNotesForLinkingUseCase: sl(),
           analyticsService: sl(),
         ))
     ..registerFactory(() => CreateTaskBloc(

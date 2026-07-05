@@ -6,6 +6,7 @@ import 'package:orbit_app/features/tasks/data/datasource/task_remote_data_source
 import 'package:orbit_app/features/tasks/domain/entities/tasks_data_entity.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/note_for_linking_entity.dart';
 import 'package:orbit_app/features/tasks/domain/repositories/task_repository.dart';
 
 class TaskRepositoryImpl implements TaskRepository {
@@ -91,6 +92,107 @@ class TaskRepositoryImpl implements TaskRepository {
     try {
       await _remoteDataSource.deleteTask(taskId);
       return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> logManualTime({
+    required String workstationId,
+    required String projectId,
+    required String taskId,
+    required int minutes,
+    required String notes,
+  }) async {
+    try {
+      await _remoteDataSource.logManualTime(
+        workstationId: workstationId,
+        projectId: projectId,
+        taskId: taskId,
+        minutes: minutes,
+        notes: notes,
+      );
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> uploadTaskAttachment({
+    required String workstationId,
+    required String taskId,
+    required List<int> fileBytes,
+    required String fileName,
+    required String? mimeType,
+  }) async {
+    try {
+      final meta = await _remoteDataSource.uploadCloudinaryFile(
+        workstationId: workstationId,
+        taskId: taskId,
+        fileBytes: fileBytes,
+        fileName: fileName,
+        mimeType: mimeType,
+      );
+      await _remoteDataSource.addTaskAttachment(
+        taskId: taskId,
+        commentId: null,
+        data: meta,
+      );
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<void> deleteTaskAttachment({
+    required String attachmentId,
+  }) async {
+    try {
+      await _remoteDataSource.deleteTaskAttachment(attachmentId);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<List<TaskEntity>> getProjectTasks({
+    required String workstationId,
+    required String projectShortId,
+  }) async {
+    try {
+      final res = await _remoteDataSource.getProjectTasks(
+        workstationId: workstationId,
+        projectShortId: projectShortId,
+      );
+      return Right(res);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  ResultFuture<List<NoteForLinkingEntity>> getNotesForLinking({
+    required String workstationId,
+  }) async {
+    try {
+      final res = await _remoteDataSource.getNotesForLinking(
+        workstationId: workstationId,
+      );
+      return Right(res);
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message));
     } catch (e) {

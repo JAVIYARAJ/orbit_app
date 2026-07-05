@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:orbit_app/app/theme/app_colors.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_bloc.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_event.dart';
@@ -10,6 +13,8 @@ import 'package:orbit_app/features/workspaces/presentation/cubit/workspace_cubit
 import 'package:orbit_app/app/di/injection.dart';
 import 'package:orbit_app/core/services/task_metadata_service.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/note_for_linking_entity.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -53,41 +58,648 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   final TextEditingController _commentController = TextEditingController();
   final TextEditingController _replyController = TextEditingController();
 
+  bool _showLogTimeForm = false;
+  final TextEditingController _logHoursController = TextEditingController();
+  final TextEditingController _logMinutesController = TextEditingController();
+  final TextEditingController _logNotesController = TextEditingController();
+
+  String? _lastTaskId;
+  num? _lastEstimateMinutes;
+  bool _wasSaving = false;
+  final TextEditingController _estHoursController = TextEditingController();
+  final TextEditingController _estMinutesController = TextEditingController();
+  final FocusNode _estHoursFocusNode = FocusNode();
+  final FocusNode _estMinutesFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _estHoursFocusNode.addListener(_onEstFocusChange);
+    _estMinutesFocusNode.addListener(_onEstFocusChange);
+  }
+
+  Future<void> _pickAndUploadAttachment({required bool fromGallery}) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: fromGallery ? FileType.image : FileType.any,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileBytes = file.bytes ?? (file.path != null ? await io.File(file.path!).readAsBytes() : null);
+      if (fileBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not read file bytes')),
+          );
+        }
+        return;
+      }
+
+      final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+      final state = context.read<TaskDetailBloc>().state;
+      final taskId = state.taskDetail?.task.id;
+
+      if (wsId != null && taskId != null) {
+        context.read<TaskDetailBloc>().add(UploadTaskAttachmentEvent(
+          workstationId: wsId,
+          taskId: taskId,
+          fileBytes: fileBytes,
+          fileName: file.name,
+          mimeType: null,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking file: $e')),
+        );
+      }
+    }
+  }
+
+  void _showAttachmentSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF141518),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2D33),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'UPLOAD ATTACHMENT',
+                style: TextStyle(
+                  color: AppColors.neutral500,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.white),
+                title: const Text('Photo Gallery', style: TextStyle(color: AppColors.white, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadAttachment(fromGallery: true);
+                },
+              ),
+              const Divider(color: Color(0xFF2C2D33), height: 1),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file_outlined, color: AppColors.white),
+                title: const Text('Files / Documents', style: TextStyle(color: AppColors.white, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadAttachment(fromGallery: false);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _deleteAttachment(String attachmentId) {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    final state = context.read<TaskDetailBloc>().state;
+    final taskId = state.taskDetail?.task.id;
+
+    if (wsId != null && taskId != null) {
+      context.read<TaskDetailBloc>().add(DeleteTaskAttachmentEvent(
+        workstationId: wsId,
+        taskId: taskId,
+        attachmentId: attachmentId,
+      ));
+    }
+  }
+
+  void _showLinkNotesSheet(TaskDetailDataEntity parentTask, List<TaskLinkedNoteEntity> linkedNotes) {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    if (wsId == null) return;
+
+    // Fetch the list of workstation notes immediately
+    context.read<TaskDetailBloc>().add(FetchNotesForLinkingEvent(workstationId: wsId));
+
+    final taskDetailBloc = context.read<TaskDetailBloc>();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF141518),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return BlocProvider.value(
+          value: taskDetailBloc,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              final searchQueryController = TextEditingController();
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                ),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.7,
+                  ),
+                  child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
+                    builder: (context, state) {
+                      if (state.notesForLinking.isEmpty && state.isSaving) {
+                        return const Center(child: CircularProgressIndicator(color: AppColors.brandSoft));
+                      }
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'LINK NOTE',
+                                style: TextStyle(
+                                  color: AppColors.neutral400,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: AppColors.neutral500, size: 18),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E1F24),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF2C2D33)),
+                            ),
+                            child: TextField(
+                              controller: searchQueryController,
+                              style: const TextStyle(color: AppColors.white, fontSize: 13),
+                              onChanged: (_) {
+                                setModalState(() {});
+                              },
+                              decoration: const InputDecoration(
+                                hintText: 'Search notes...',
+                                hintStyle: TextStyle(color: AppColors.neutral600, fontSize: 13),
+                                border: InputBorder.none,
+                                icon: Icon(Icons.search, color: AppColors.neutral500, size: 16),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: Builder(
+                              builder: (context) {
+                                final query = searchQueryController.text.toLowerCase().trim();
+                                final displayNotes = state.notesForLinking.where((n) {
+                                  return n.title.toLowerCase().contains(query);
+                                }).toList();
+
+                                if (displayNotes.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      'No notes found.',
+                                      style: TextStyle(color: AppColors.neutral500, fontSize: 13),
+                                    ),
+                                  );
+                                }
+
+                                return ListView.separated(
+                                  itemCount: displayNotes.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final note = displayNotes[index];
+                                    final isLinked = linkedNotes.any((n) => n.id == note.id);
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E1F24),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFF2C2D33)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  note.title,
+                                                  style: const TextStyle(
+                                                    color: AppColors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                if (note.folderName != null) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    note.folderName!,
+                                                    style: const TextStyle(
+                                                      color: AppColors.neutral500,
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          TextButton(
+                                            onPressed: () {
+                                              final List<String> updatedIds = linkedNotes.map((n) => n.id).toList();
+                                              if (isLinked) {
+                                                updatedIds.remove(note.id);
+                                              } else {
+                                                updatedIds.add(note.id);
+                                              }
+
+                                              context.read<TaskDetailBloc>().add(LinkNoteEvent(
+                                                workstationId: wsId,
+                                                taskId: parentTask.id,
+                                                linkedNoteIds: updatedIds,
+                                              ));
+                                              Navigator.pop(context);
+                                            },
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: isLinked ? const Color(0x22EF4444) : const Color(0x220099FF),
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isLinked ? 'Unlink' : 'Link',
+                                              style: TextStyle(
+                                                color: isLinked ? const Color(0xFFEF4444) : const Color(0xFF0099FF),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLinkSubtaskSheet(TaskDetailDataEntity parentTask, List<TaskSubtaskEntity> subtasks) {
+    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+    if (wsId == null || parentTask.project?.shortId == null) return;
+
+    // Fetch the list of project tasks immediately
+    context.read<TaskDetailBloc>().add(FetchProjectTasksEvent(
+      workstationId: wsId,
+      projectShortId: parentTask.project!.shortId,
+    ));
+
+    final taskDetailBloc = context.read<TaskDetailBloc>();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF141518),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return BlocProvider.value(
+          value: taskDetailBloc,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              final searchQueryController = TextEditingController();
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                ),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.7,
+                  ),
+                  child: BlocBuilder<TaskDetailBloc, TaskDetailState>(
+                    builder: (context, state) {
+                      if (state.projectTasks.isEmpty && state.isSaving) {
+                        return const Center(child: CircularProgressIndicator(color: AppColors.brandSoft));
+                      }
+
+                      // Exclude current task (cannot be a subtask of itself)
+                      final filterTasks = state.projectTasks.where((t) {
+                        return t.id != parentTask.id;
+                      }).toList();
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'LINK SUBTASK',
+                                style: TextStyle(
+                                  color: AppColors.neutral400,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: AppColors.neutral500, size: 18),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E1F24),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF2C2D33)),
+                            ),
+                            child: TextField(
+                              controller: searchQueryController,
+                              style: const TextStyle(color: AppColors.white, fontSize: 13),
+                              onChanged: (_) {
+                                // Force builder update
+                                setModalState(() {});
+                              },
+                              decoration: const InputDecoration(
+                                hintText: 'Search tasks...',
+                                hintStyle: TextStyle(color: AppColors.neutral600, fontSize: 13),
+                                border: InputBorder.none,
+                                icon: Icon(Icons.search, color: AppColors.neutral500, size: 16),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: Builder(
+                              builder: (context) {
+                                final query = searchQueryController.text.toLowerCase().trim();
+                                final displayTasks = filterTasks.where((t) {
+                                  return t.title.toLowerCase().contains(query) ||
+                                      t.taskId.toLowerCase().contains(query);
+                                }).toList();
+
+                                if (displayTasks.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      'No tasks found.',
+                                      style: TextStyle(color: AppColors.neutral500, fontSize: 13),
+                                    ),
+                                  );
+                                }
+
+                                return ListView.separated(
+                                  itemCount: displayTasks.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final t = displayTasks[index];
+                                    final isLinked = subtasks.any((sub) => sub.id == t.id) || t.parentTaskId == parentTask.id;
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E1F24),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFF2C2D33)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF2C2D33),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        t.taskId,
+                                                        style: const TextStyle(
+                                                          color: AppColors.neutral400,
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Flexible(
+                                                      child: Text(
+                                                        t.title,
+                                                        style: const TextStyle(
+                                                          color: AppColors.white,
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          TextButton(
+                                            onPressed: () {
+                                              // Toggle link
+                                              context.read<TaskDetailBloc>().add(LinkSubtaskEvent(
+                                                workstationId: wsId,
+                                                childTaskId: t.id,
+                                                parentTaskId: isLinked ? null : parentTask.id,
+                                              ));
+                                              // Close the bottom sheet
+                                              Navigator.pop(context);
+                                            },
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: isLinked ? const Color(0x22EF4444) : const Color(0x220099FF),
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isLinked ? 'Unlink' : 'Link',
+                                              style: TextStyle(
+                                                color: isLinked ? const Color(0xFFEF4444) : const Color(0xFF0099FF),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _onEstFocusChange() {
+    if (!_estHoursFocusNode.hasFocus && !_estMinutesFocusNode.hasFocus) {
+      final state = context.read<TaskDetailBloc>().state;
+      if (state.taskDetail != null) {
+        _saveEstimate(state.taskDetail!.task);
+      }
+    }
+  }
+
+  void _saveEstimate(TaskDetailDataEntity task) {
+    final hours = int.tryParse(_estHoursController.text) ?? 0;
+    final minutes = int.tryParse(_estMinutesController.text) ?? 0;
+    final totalMinutes = (hours * 60) + minutes;
+    
+    if (totalMinutes != task.estimateMinutes) {
+      final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+      if (wsId != null) {
+        context.read<TaskDetailBloc>().add(UpdateTaskEstimateEvent(
+          workstationId: wsId,
+          taskId: task.id,
+          estimateMinutes: totalMinutes,
+        ));
+        _lastEstimateMinutes = totalMinutes;
+      }
+    }
+  }
+
   @override
   void dispose() {
     _savedTimer?.cancel();
     _commentController.dispose();
     _replyController.dispose();
+    _logHoursController.dispose();
+    _logMinutesController.dispose();
+    _logNotesController.dispose();
+    _estHoursFocusNode.removeListener(_onEstFocusChange);
+    _estMinutesFocusNode.removeListener(_onEstFocusChange);
+    _estHoursFocusNode.dispose();
+    _estMinutesFocusNode.dispose();
+    _estHoursController.dispose();
+    _estMinutesController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TaskDetailBloc, TaskDetailState>(
-      listenWhen: (prev, current) => prev.isSaving != current.isSaving || prev.isDeleted != current.isDeleted,
+      listenWhen: (prev, current) => prev.isSaving != current.isSaving || prev.isDeleted != current.isDeleted || prev.taskDetail != current.taskDetail,
       listener: (context, state) {
         if (state.isDeleted) {
           context.pop(true);
           return;
         }
+        if (state.taskDetail != null) {
+          final task = state.taskDetail!.task;
+          if (_lastTaskId != task.id || _lastEstimateMinutes != task.estimateMinutes) {
+            _lastTaskId = task.id;
+            _lastEstimateMinutes = task.estimateMinutes;
+            if (!_estHoursFocusNode.hasFocus) {
+              _estHoursController.text = (task.estimateMinutes ~/ 60).toString();
+            }
+            if (!_estMinutesFocusNode.hasFocus) {
+              _estMinutesController.text = (task.estimateMinutes % 60).toString();
+            }
+          }
+        }
         if (state.isSaving) {
           _didChange = true;
+          _wasSaving = true;
           _savedTimer?.cancel();
           setState(() {
             _showSaved = false;
           });
         } else {
-          setState(() {
-            _showSaved = true;
-          });
-          _savedTimer?.cancel();
-          _savedTimer = Timer(const Duration(seconds: 1), () {
-            if (mounted) {
-              setState(() {
-                _showSaved = false;
-              });
-            }
-          });
+          if (_wasSaving) {
+            _wasSaving = false;
+            setState(() {
+              _showSaved = true;
+            });
+            _savedTimer?.cancel();
+            _savedTimer = Timer(const Duration(seconds: 1), () {
+              if (mounted) {
+                setState(() {
+                  _showSaved = false;
+                });
+              }
+            });
+          }
         }
       },
       builder: (context, state) {
@@ -201,10 +813,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     _buildAttachments(data.attachments),
                     const SizedBox(height: 24),
 
-                    _buildSubtasks(data.subtasks, task.id),
+                    _buildSubtasks(data),
                     const SizedBox(height: 24),
 
-                    _buildLinkedNotes(data.linkedNotes),
+                    _buildLinkedNotes(data),
                     const SizedBox(height: 32),
 
                     const _SectionTitle('ACTIVITY'),
@@ -236,6 +848,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   Widget _buildAttachments(List<TaskAttachmentEntity> attachments) {
+    final state = context.read<TaskDetailBloc>().state;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -255,84 +868,175 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 ),
               ],
             ),
-            const Row(
-              children: [
-                Icon(Icons.add, color: AppColors.white, size: 14),
-                SizedBox(width: 4),
-                Text('Add', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-              ],
+            InkWell(
+              onTap: state.isSaving ? null : _showAttachmentSourceSheet,
+              child: const Row(
+                children: [
+                  Icon(Icons.add, color: AppColors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text('Add', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        if (attachments.isNotEmpty)
-          Container(
-            width: 160,
+        if (attachments.isNotEmpty) ...[
+          SizedBox(
+            height: 160,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: attachments.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final att = attachments[index];
+                final isImage = att.mimeType.startsWith('image/') ||
+                    att.url.toLowerCase().endsWith('.png') ||
+                    att.url.toLowerCase().endsWith('.jpg') ||
+                    att.url.toLowerCase().endsWith('.jpeg');
+                return Container(
+                  width: 160,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141518),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF2C2D33)),
+                  ),
+                  child: Stack(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final uri = Uri.parse(att.url);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri, mode: LaunchMode.inAppWebView);
+                                }
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF1E1F24),
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                  child: isImage
+                                      ? Image.network(
+                                          att.url,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => const Icon(Icons.image_outlined, color: AppColors.neutral500),
+                                        )
+                                      : const Icon(Icons.insert_drive_file_outlined, color: AppColors.neutral500, size: 28),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  att.fileName,
+                                  style: const TextStyle(color: AppColors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${att.sizeBytes ~/ 1024} KB',
+                                      style: const TextStyle(color: AppColors.neutral400, fontSize: 10),
+                                    ),
+                                    _MiniAvatar(
+                                      initials: att.uploadedBy.name.length >= 2 
+                                          ? att.uploadedBy.name.substring(0, 2) 
+                                          : att.uploadedBy.name,
+                                      avatarUrl: att.uploadedBy.avatar,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _deleteAttachment(att.id),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        InkWell(
+          onTap: state.isSaving ? null : _showAttachmentSourceSheet,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFF141518),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFF2C2D33)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 100,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1E1F24),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                  ),
-                  child: attachments.first.url.isNotEmpty 
-                      ? Image.network(attachments.first.url, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.broken_image, color: AppColors.neutral500))
-                      : const Icon(Icons.image_outlined, color: AppColors.neutral500),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: state.isAttachmentUploading
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(attachments.first.fileName, style: const TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('${attachments.first.sizeBytes ~/ 1024} KB', style: const TextStyle(color: AppColors.neutral400, fontSize: 11)),
-                          _MiniAvatar(
-                            initials: attachments.first.uploadedBy.name.substring(0, 2),
-                            avatarUrl: attachments.first.uploadedBy.avatar,
-                          ),
-                        ],
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.neutral500),
+                        ),
                       ),
+                      SizedBox(width: 8),
+                      Text('Uploading attachment...', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
+                    ],
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.upload_file_rounded, color: AppColors.neutral500, size: 16),
+                      SizedBox(width: 8),
+                      Text('Tap here to upload an attachment', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF2C2D33), style: BorderStyle.none),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.upload_file_rounded, color: AppColors.neutral500, size: 16),
-              SizedBox(width: 8),
-              Text('Tap here to upload an attachment', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
-            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSubtasks(List<TaskSubtaskEntity> subtasks, String parentTaskId) {
+  Widget _buildSubtasks(TaskDetailEntity data) {
+    final subtasks = data.subtasks;
+    final parentTask = data.task;
+    final parentTaskId = parentTask.id;
     final completedCount = subtasks.where((e) => e.status.isDone).length;
     final totalCount = subtasks.length;
     final progress = totalCount > 0 ? (completedCount / totalCount * 100).toInt() : 0;
@@ -356,16 +1060,15 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 ),
               ],
             ),
-            const Row(
-              children: [
-                Icon(Icons.link_rounded, color: AppColors.white, size: 14),
-                SizedBox(width: 4),
-                Text('Link', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-                SizedBox(width: 16),
-                Icon(Icons.add, color: AppColors.white, size: 14),
-                SizedBox(width: 4),
-                Text('Add', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-              ],
+            InkWell(
+              onTap: () => _showLinkSubtaskSheet(parentTask, subtasks),
+              child: const Row(
+                children: [
+                  Icon(Icons.link_rounded, color: AppColors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text('Link', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           ],
         ),
@@ -418,21 +1121,43 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       border: Border.all(color: const Color(0xFF2C2D33)),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(color: _parseColor(subtasks[i].status.color), shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(subtasks[i].title, style: TextStyle(color: subtasks[i].status.isDone ? AppColors.neutral400 : AppColors.white, fontSize: 13, decoration: subtasks[i].status.isDone ? TextDecoration.lineThrough : null))),
-                      const SizedBox(width: 12),
-                      Text(subtasks[i].status.label.toUpperCase(), style: TextStyle(color: _parseColor(subtasks[i].status.color), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right_rounded, color: AppColors.neutral500, size: 16),
-                    ],
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8, height: 8,
+                          decoration: BoxDecoration(color: _parseColor(subtasks[i].status.color), shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(subtasks[i].title, style: TextStyle(color: subtasks[i].status.isDone ? AppColors.neutral400 : AppColors.white, fontSize: 13, decoration: subtasks[i].status.isDone ? TextDecoration.lineThrough : null))),
+                        const SizedBox(width: 12),
+                        Text(subtasks[i].status.label.toUpperCase(), style: TextStyle(color: _parseColor(subtasks[i].status.color), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
+                        const SizedBox(width: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.link_off_rounded, color: Color(0xFFEF4444), size: 16),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                                if (wsId != null) {
+                                  context.read<TaskDetailBloc>().add(LinkSubtaskEvent(
+                                    workstationId: wsId,
+                                    childTaskId: subtasks[i].id,
+                                    parentTaskId: null,
+                                  ));
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right_rounded, color: AppColors.neutral500, size: 16),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),)
+                ),
               ],
             ],
           ),
@@ -440,7 +1165,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildLinkedNotes(List<TaskLinkedNoteEntity> notes) {
+  Widget _buildLinkedNotes(TaskDetailEntity data) {
+    final notes = data.linkedNotes;
+    final parentTask = data.task;
+    final parentTaskId = parentTask.id;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -460,12 +1189,15 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 ),
               ],
             ),
-            const Row(
-              children: [
-                Icon(Icons.add, color: AppColors.white, size: 14),
-                SizedBox(width: 4),
-                Text('Attach', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-              ],
+            InkWell(
+              onTap: () => _showLinkNotesSheet(parentTask, notes),
+              child: const Row(
+                children: [
+                  Icon(Icons.add, color: AppColors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text('Attach', style: TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           ],
         ),
@@ -484,6 +1216,23 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 const Icon(Icons.description_outlined, color: AppColors.neutral400, size: 16),
                 const SizedBox(width: 8),
                 Expanded(child: Text(note.title, style: const TextStyle(color: AppColors.white, fontSize: 14))),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.link_off_rounded, color: Color(0xFFEF4444), size: 16),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                    if (wsId != null) {
+                      final updatedIds = notes.where((n) => n.id != note.id).map((n) => n.id).toList();
+                      context.read<TaskDetailBloc>().add(LinkNoteEvent(
+                        workstationId: wsId,
+                        taskId: parentTaskId,
+                        linkedNoteIds: updatedIds,
+                      ));
+                    }
+                  },
+                ),
               ],
             ),
           ),
@@ -1358,6 +2107,12 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   Widget _buildTimeAndProgress(TaskDetailDataEntity task) {
+    final est = task.estimateMinutes;
+    final logged = task.loggedMinutes;
+    final hasEst = est > 0;
+    final isOvertime = hasEst && logged > est;
+    final pct = hasEst ? (logged / est * 100).round().clamp(0, 100) : 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1384,8 +2139,27 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: const Color(0xFF0D324D), borderRadius: BorderRadius.circular(4)),
-                    child: Text('${task.progress.toInt()}%', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.w600)),
+                    decoration: BoxDecoration(
+                      color: hasEst
+                          ? (isOvertime ? const Color(0x33EF4444) : const Color(0xFF0D324D))
+                          : const Color(0xFF1E1F24),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: hasEst
+                            ? (isOvertime ? const Color(0x44EF4444) : const Color(0x440099FF))
+                            : const Color(0xFF2C2D33),
+                      ),
+                    ),
+                    child: Text(
+                      hasEst ? '$pct%' : 'No Est',
+                      style: TextStyle(
+                        color: hasEst
+                            ? (isOvertime ? const Color(0xFFFF5C5C) : const Color(0xFF38BDF8))
+                            : AppColors.neutral500,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1393,9 +2167,9 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: task.progress / 100,
+                  value: hasEst ? (logged / est).clamp(0.0, 1.0) : 0.0,
                   backgroundColor: const Color(0xFF2C2D33),
-                  color: const Color(0xFF38BDF8),
+                  color: isOvertime ? const Color(0xFFEF4444) : const Color(0xFF38BDF8),
                   minHeight: 6,
                 ),
               ),
@@ -1410,7 +2184,12 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       children: [
                         const Text('LOGGED', style: TextStyle(color: AppColors.neutral500, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
                         const SizedBox(height: 4),
-                        Text('${task.loggedMinutes ~/ 60}h', style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+                        Text(
+                          logged > 0
+                              ? '${logged ~/ 60}h ${logged % 60}m'
+                              : '0h',
+                          style: const TextStyle(color: AppColors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
                       ],
                     ),
                   ),
@@ -1425,17 +2204,51 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(color: const Color(0xFF1E1F24), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFF2C2D33))),
-                              child: Text('${task.estimateMinutes ~/ 60}', style: const TextStyle(color: AppColors.white, fontSize: 14)),
+                              width: 50,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E1F24),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF2C2D33)),
+                              ),
+                              child: TextField(
+                                controller: _estHoursController,
+                                focusNode: _estHoursFocusNode,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(color: AppColors.white, fontSize: 14),
+                                textAlign: TextAlign.center,
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                ),
+                                onSubmitted: (_) => _saveEstimate(task),
+                              ),
                             ),
                             const SizedBox(width: 8),
                             const Text('h', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(color: const Color(0xFF1E1F24), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFF2C2D33))),
-                              child: Text('${task.estimateMinutes % 60}', style: const TextStyle(color: AppColors.white, fontSize: 14)),
+                              width: 50,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E1F24),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF2C2D33)),
+                              ),
+                              child: TextField(
+                                controller: _estMinutesController,
+                                focusNode: _estMinutesFocusNode,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(color: AppColors.white, fontSize: 14),
+                                textAlign: TextAlign.center,
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                ),
+                                onSubmitted: (_) => _saveEstimate(task),
+                              ),
                             ),
                             const SizedBox(width: 8),
                             const Text('m', style: TextStyle(color: AppColors.neutral500, fontSize: 12)),
@@ -1452,31 +2265,180 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFF1E1F24), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFF2C2D33))),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.add, color: AppColors.neutral400, size: 14),
-                        SizedBox(width: 4),
-                        Text('Log Time', style: TextStyle(color: AppColors.neutral300, fontSize: 13, fontWeight: FontWeight.w500)),
-                      ],
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _showLogTimeForm = !_showLogTimeForm;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _showLogTimeForm ? const Color(0x33EF4444) : const Color(0xFF1E1F24),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _showLogTimeForm ? const Color(0xFFEF4444).withValues(alpha: 0.4) : const Color(0xFF2C2D33)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _showLogTimeForm ? Icons.close : Icons.add,
+                            color: _showLogTimeForm ? const Color(0xFFEF4444) : AppColors.neutral400,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _showLogTimeForm ? 'Close Log' : 'Log Time',
+                            style: TextStyle(
+                              color: _showLogTimeForm ? const Color(0xFFEF4444) : AppColors.neutral300,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      _QuickTimeBtn('+15m'),
-                      const SizedBox(width: 8),
-                      _QuickTimeBtn('+30m'),
-                      const SizedBox(width: 8),
-                      _QuickTimeBtn('+1h'),
-                    ],
                   ),
                 ],
               ),
+              if (_showLogTimeForm) ...[
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFF2C2D33), height: 1),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TIME TO LOG',
+                      style: TextStyle(color: AppColors.neutral500, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.0),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildLogInputField(_logHoursController, 'hours'),
+                        const SizedBox(width: 16),
+                        _buildLogInputField(_logMinutesController, 'minutes'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'NOTES (OPTIONAL)',
+                      style: TextStyle(color: AppColors.neutral500, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.0),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1F24),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF2C2D33)),
+                      ),
+                      child: TextField(
+                        controller: _logNotesController,
+                        style: const TextStyle(color: AppColors.white, fontSize: 14),
+                        decoration: const InputDecoration(
+                          hintText: 'What did you do?',
+                          hintStyle: TextStyle(color: AppColors.neutral600, fontSize: 14),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            _logHoursController.clear();
+                            _logMinutesController.clear();
+                            _logNotesController.clear();
+                            setState(() {
+                              _showLogTimeForm = false;
+                            });
+                          },
+                          child: const Text('Cancel', style: TextStyle(color: AppColors.neutral400, fontSize: 13, fontWeight: FontWeight.w500)),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            final hours = int.tryParse(_logHoursController.text) ?? 0;
+                            final minutes = int.tryParse(_logMinutesController.text) ?? 0;
+                            final totalMinutes = (hours * 60) + minutes;
+                            
+                            if (totalMinutes <= 0) return;
+
+                            final wsId = context.read<WorkspaceCubit>().state.selectedWorkstation?.id;
+                            if (wsId != null && task.project?.id != null) {
+                              context.read<TaskDetailBloc>().add(LogTaskTimeEvent(
+                                workstationId: wsId,
+                                projectId: task.project!.id,
+                                taskId: task.id,
+                                minutes: totalMinutes,
+                                notes: _logNotesController.text.isNotEmpty 
+                                    ? _logNotesController.text 
+                                    : 'Logged time',
+                              ));
+
+                              _logHoursController.clear();
+                              _logMinutesController.clear();
+                              _logNotesController.clear();
+                              setState(() {
+                                _showLogTimeForm = false;
+                              });
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0099FF),
+                            foregroundColor: AppColors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            minimumSize: const Size(0, 36),
+                          ),
+                          child: const Text('Add time', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildLogInputField(TextEditingController controller, String unit) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 54,
+          height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1F24),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: const Color(0xFF2C2D33)),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: AppColors.white, fontSize: 14),
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              hintText: '0',
+              hintStyle: TextStyle(color: AppColors.neutral600),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 8),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(unit, style: const TextStyle(color: AppColors.neutral500, fontSize: 13)),
       ],
     );
   }
@@ -1773,23 +2735,6 @@ class _MiniAvatar extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF2C2D33), shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(initials, style: TextStyle(color: AppColors.white, fontSize: size * 0.4, fontWeight: FontWeight.w600)),
-    );
-  }
-}
-
-class _QuickTimeBtn extends StatelessWidget {
-  const _QuickTimeBtn(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1F24),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFF2C2D33)),
-      ),
-      child: Text(text, style: const TextStyle(color: AppColors.neutral400, fontSize: 12)),
     );
   }
 }

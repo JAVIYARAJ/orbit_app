@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/task_entity.dart';
+import 'package:orbit_app/features/tasks/domain/entities/note_for_linking_entity.dart';
 
 enum TaskDetailStatus { initial, loading, success, failure }
 
@@ -10,6 +12,9 @@ class TaskDetailState extends Equatable {
     this.errorMessage,
     this.isSaving = false,
     this.isDeleted = false,
+    this.projectTasks = const [],
+    this.notesForLinking = const [],
+    this.isAttachmentUploading = false,
   });
 
   final TaskDetailStatus status;
@@ -17,6 +22,9 @@ class TaskDetailState extends Equatable {
   final String? errorMessage;
   final bool isSaving;
   final bool isDeleted;
+  final List<TaskEntity> projectTasks;
+  final List<NoteForLinkingEntity> notesForLinking;
+  final bool isAttachmentUploading;
 
   TaskDetailState copyWith({
     TaskDetailStatus? status,
@@ -24,6 +32,9 @@ class TaskDetailState extends Equatable {
     String? errorMessage,
     bool? isSaving,
     bool? isDeleted,
+    List<TaskEntity>? projectTasks,
+    List<NoteForLinkingEntity>? notesForLinking,
+    bool? isAttachmentUploading,
   }) {
     return TaskDetailState(
       status: status ?? this.status,
@@ -31,9 +42,12 @@ class TaskDetailState extends Equatable {
       errorMessage: errorMessage ?? this.errorMessage,
       isSaving: isSaving ?? this.isSaving,
       isDeleted: isDeleted ?? this.isDeleted,
+      projectTasks: projectTasks ?? this.projectTasks,
+      notesForLinking: notesForLinking ?? this.notesForLinking,
+      isAttachmentUploading: isAttachmentUploading ?? this.isAttachmentUploading,
     );
   }
 
   @override
-  List<Object?> get props => [status, taskDetail, errorMessage, isSaving, isDeleted];
+  List<Object?> get props => [status, taskDetail, errorMessage, isSaving, isDeleted, projectTasks, notesForLinking, isAttachmentUploading];
 }

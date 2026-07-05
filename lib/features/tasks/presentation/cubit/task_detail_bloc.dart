@@ -4,6 +4,11 @@ import 'package:orbit_app/features/tasks/domain/usecases/update_task_use_case.da
 import 'package:orbit_app/features/tasks/domain/usecases/add_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_comment_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/usecases/delete_task_usecase.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/log_manual_time_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/upload_task_attachment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/delete_task_attachment_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/get_project_tasks_use_case.dart';
+import 'package:orbit_app/features/tasks/domain/usecases/get_notes_for_linking_use_case.dart';
 import 'package:orbit_app/features/tasks/domain/entities/task_detail_entity.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_event.dart';
 import 'package:orbit_app/features/tasks/presentation/cubit/task_detail_state.dart';
@@ -16,12 +21,22 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     required AddTaskCommentUseCase addTaskCommentUseCase,
     required DeleteTaskCommentUseCase deleteTaskCommentUseCase,
     required DeleteTaskUseCase deleteTaskUseCase,
+    required LogManualTimeUseCase logManualTimeUseCase,
+    required UploadTaskAttachmentUseCase uploadTaskAttachmentUseCase,
+    required DeleteTaskAttachmentUseCase deleteTaskAttachmentUseCase,
+    required GetProjectTasksUseCase getProjectTasksUseCase,
+    required GetNotesForLinkingUseCase getNotesForLinkingUseCase,
     required AnalyticsService analyticsService,
   })  : _getTaskDetailUseCase = getTaskDetailUseCase,
         _updateTaskUseCase = updateTaskUseCase,
         _addTaskCommentUseCase = addTaskCommentUseCase,
         _deleteTaskCommentUseCase = deleteTaskCommentUseCase,
         _deleteTaskUseCase = deleteTaskUseCase,
+        _logManualTimeUseCase = logManualTimeUseCase,
+        _uploadTaskAttachmentUseCase = uploadTaskAttachmentUseCase,
+        _deleteTaskAttachmentUseCase = deleteTaskAttachmentUseCase,
+        _getProjectTasksUseCase = getProjectTasksUseCase,
+        _getNotesForLinkingUseCase = getNotesForLinkingUseCase,
         _analyticsService = analyticsService,
         super(const TaskDetailState()) {
     on<FetchTaskDetailEvent>(_onFetchTaskDetail);
@@ -34,9 +49,17 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     on<UpdateTaskTitleEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'title': e.title}, emit));
     on<UpdateTaskDescriptionEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'description': e.description}, emit));
     on<UpdateTaskBranchEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'gh_branch': e.branch}, emit));
+    on<UpdateTaskEstimateEvent>((e, emit) => _performUpdate(e.workstationId, e.taskId, {'est_minutes': e.estimateMinutes}, emit));
     on<AddTaskCommentEvent>(_onAddTaskComment);
     on<DeleteTaskCommentEvent>(_onDeleteTaskComment);
     on<DeleteTaskEvent>(_onDeleteTask);
+    on<LogTaskTimeEvent>(_onLogTaskTime);
+    on<UploadTaskAttachmentEvent>(_onUploadTaskAttachment);
+    on<DeleteTaskAttachmentEvent>(_onDeleteTaskAttachment);
+    on<FetchProjectTasksEvent>(_onFetchProjectTasks);
+    on<LinkSubtaskEvent>(_onLinkSubtask);
+    on<FetchNotesForLinkingEvent>(_onFetchNotesForLinking);
+    on<LinkNoteEvent>(_onLinkNote);
   }
 
   final GetTaskDetailUseCase _getTaskDetailUseCase;
@@ -44,6 +67,11 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   final AddTaskCommentUseCase _addTaskCommentUseCase;
   final DeleteTaskCommentUseCase _deleteTaskCommentUseCase;
   final DeleteTaskUseCase _deleteTaskUseCase;
+  final LogManualTimeUseCase _logManualTimeUseCase;
+  final UploadTaskAttachmentUseCase _uploadTaskAttachmentUseCase;
+  final DeleteTaskAttachmentUseCase _deleteTaskAttachmentUseCase;
+  final GetProjectTasksUseCase _getProjectTasksUseCase;
+  final GetNotesForLinkingUseCase _getNotesForLinkingUseCase;
   final AnalyticsService _analyticsService;
 
   Future<void> _onFetchTaskDetail(
@@ -105,6 +133,9 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
       }
       if (data.containsKey('description')) {
         updatedTask = updatedTask.copyWith(description: data['description'].toString());
+      }
+      if (data.containsKey('est_minutes')) {
+        updatedTask = updatedTask.copyWith(estimateMinutes: data['est_minutes'] as num?);
       }
       if (data.containsKey('due_date')) {
         final dateStr = data['due_date'] as String?;
@@ -260,6 +291,232 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     result.fold(
       (failure) => emit(state.copyWith(isSaving: false, errorMessage: failure.message)),
       (_) => emit(state.copyWith(isSaving: false, isDeleted: true)),
+    );
+  }
+
+  Future<void> _onLogTaskTime(
+    LogTaskTimeEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isSaving: true));
+
+    final result = await _logManualTimeUseCase(LogManualTimeParams(
+      workstationId: event.workstationId,
+      projectId: event.projectId,
+      taskId: event.taskId,
+      minutes: event.minutes,
+      notes: event.notes,
+    ));
+
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          isSaving: false,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // Fetch fresh task details
+        final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
+          workstationId: event.workstationId,
+          taskId: event.taskId,
+        ));
+        fetchResult.fold(
+          (failure) => emit(state.copyWith(
+            isSaving: false,
+            errorMessage: failure.message,
+          )),
+          (freshData) => emit(state.copyWith(
+            isSaving: false,
+            taskDetail: freshData,
+          )),
+        );
+      },
+    );
+  }
+
+  Future<void> _onUploadTaskAttachment(
+    UploadTaskAttachmentEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isAttachmentUploading: true));
+
+    final result = await _uploadTaskAttachmentUseCase(UploadTaskAttachmentParams(
+      workstationId: event.workstationId,
+      taskId: event.taskId,
+      fileBytes: event.fileBytes,
+      fileName: event.fileName,
+      mimeType: event.mimeType,
+    ));
+
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          isAttachmentUploading: false,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // Fetch fresh task details
+        final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
+          workstationId: event.workstationId,
+          taskId: event.taskId,
+        ));
+        fetchResult.fold(
+          (failure) => emit(state.copyWith(
+            isAttachmentUploading: false,
+            errorMessage: failure.message,
+          )),
+          (freshData) => emit(state.copyWith(
+            isAttachmentUploading: false,
+            taskDetail: freshData,
+          )),
+        );
+      },
+    );
+  }
+
+  Future<void> _onDeleteTaskAttachment(
+    DeleteTaskAttachmentEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isAttachmentUploading: true));
+
+    final result = await _deleteTaskAttachmentUseCase(DeleteTaskAttachmentParams(
+      attachmentId: event.attachmentId,
+    ));
+
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          isAttachmentUploading: false,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // Fetch fresh task details
+        final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
+          workstationId: event.workstationId,
+          taskId: event.taskId,
+        ));
+        fetchResult.fold(
+          (failure) => emit(state.copyWith(
+            isAttachmentUploading: false,
+            errorMessage: failure.message,
+          )),
+          (freshData) => emit(state.copyWith(
+            isAttachmentUploading: false,
+            taskDetail: freshData,
+          )),
+        );
+      },
+    );
+  }
+
+  Future<void> _onFetchProjectTasks(
+    FetchProjectTasksEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final result = await _getProjectTasksUseCase(GetProjectTasksParams(
+      workstationId: event.workstationId,
+      projectShortId: event.projectShortId,
+    ));
+
+    result.fold(
+      (failure) => emit(state.copyWith(errorMessage: failure.message)),
+      (tasks) => emit(state.copyWith(projectTasks: tasks)),
+    );
+  }
+
+  Future<void> _onLinkSubtask(
+    LinkSubtaskEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isSaving: true));
+
+    final result = await _updateTaskUseCase(UpdateTaskParams(
+      taskId: event.childTaskId,
+      data: {'parent_task_id': event.parentTaskId},
+    ));
+
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          isSaving: false,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // Fetch fresh task details for the parent task
+        if (state.taskDetail != null) {
+          final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
+            workstationId: event.workstationId,
+            taskId: state.taskDetail!.task.id,
+          ));
+          fetchResult.fold(
+            (failure) => emit(state.copyWith(
+              isSaving: false,
+              errorMessage: failure.message,
+            )),
+            (freshData) => emit(state.copyWith(
+              isSaving: false,
+              taskDetail: freshData,
+            )),
+          );
+        } else {
+          emit(state.copyWith(isSaving: false));
+        }
+      },
+    );
+  }
+
+  Future<void> _onFetchNotesForLinking(
+    FetchNotesForLinkingEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    final result = await _getNotesForLinkingUseCase(event.workstationId);
+
+    result.fold(
+      (failure) => emit(state.copyWith(errorMessage: failure.message)),
+      (notes) => emit(state.copyWith(notesForLinking: notes)),
+    );
+  }
+
+  Future<void> _onLinkNote(
+    LinkNoteEvent event,
+    Emitter<TaskDetailState> emit,
+  ) async {
+    emit(state.copyWith(isSaving: true));
+
+    final result = await _updateTaskUseCase(UpdateTaskParams(
+      taskId: event.taskId,
+      data: {'linked_note_ids': event.linkedNoteIds},
+    ));
+
+    await result.fold(
+      (failure) async {
+        emit(state.copyWith(
+          isSaving: false,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) async {
+        // Fetch fresh task details
+        final fetchResult = await _getTaskDetailUseCase(GetTaskDetailParams(
+          workstationId: event.workstationId,
+          taskId: event.taskId,
+        ));
+        fetchResult.fold(
+          (failure) => emit(state.copyWith(
+            isSaving: false,
+            errorMessage: failure.message,
+          )),
+          (freshData) => emit(state.copyWith(
+            isSaving: false,
+            taskDetail: freshData,
+          )),
+        );
+      },
     );
   }
 }

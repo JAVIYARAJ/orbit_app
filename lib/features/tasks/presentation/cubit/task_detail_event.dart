@@ -97,6 +97,14 @@ class UpdateTaskDescriptionEvent extends TaskDetailEvent {
   @override List<Object?> get props => [workstationId, taskId, description];
 }
 
+class UpdateTaskEstimateEvent extends TaskDetailEvent {
+  const UpdateTaskEstimateEvent({required this.workstationId, required this.taskId, required this.estimateMinutes});
+  final String workstationId;
+  final String taskId;
+  final int estimateMinutes;
+  @override List<Object?> get props => [workstationId, taskId, estimateMinutes];
+}
+
 class AddTaskCommentEvent extends TaskDetailEvent {
   const AddTaskCommentEvent({
     required this.workstationId,
@@ -129,4 +137,111 @@ class DeleteTaskCommentEvent extends TaskDetailEvent {
 
   @override
   List<Object?> get props => [workstationId, taskId, commentId];
+}
+
+class LogTaskTimeEvent extends TaskDetailEvent {
+  const LogTaskTimeEvent({
+    required this.workstationId,
+    required this.projectId,
+    required this.taskId,
+    required this.minutes,
+    required this.notes,
+  });
+
+  final String workstationId;
+  final String projectId;
+  final String taskId;
+  final int minutes;
+  final String notes;
+
+  @override
+  List<Object?> get props => [workstationId, projectId, taskId, minutes, notes];
+}
+
+class UploadTaskAttachmentEvent extends TaskDetailEvent {
+  const UploadTaskAttachmentEvent({
+    required this.workstationId,
+    required this.taskId,
+    required this.fileBytes,
+    required this.fileName,
+    required this.mimeType,
+  });
+
+  final String workstationId;
+  final String taskId;
+  final List<int> fileBytes;
+  final String fileName;
+  final String? mimeType;
+
+  @override
+  List<Object?> get props => [workstationId, taskId, fileName, mimeType];
+}
+
+class DeleteTaskAttachmentEvent extends TaskDetailEvent {
+  const DeleteTaskAttachmentEvent({
+    required this.workstationId,
+    required this.taskId,
+    required this.attachmentId,
+  });
+
+  final String workstationId;
+  final String taskId;
+  final String attachmentId;
+
+  @override
+  List<Object?> get props => [workstationId, taskId, attachmentId];
+}
+
+class FetchProjectTasksEvent extends TaskDetailEvent {
+  const FetchProjectTasksEvent({
+    required this.workstationId,
+    required this.projectShortId,
+  });
+
+  final String workstationId;
+  final String projectShortId;
+
+  @override
+  List<Object?> get props => [workstationId, projectShortId];
+}
+
+class LinkSubtaskEvent extends TaskDetailEvent {
+  const LinkSubtaskEvent({
+    required this.workstationId,
+    required this.childTaskId,
+    required this.parentTaskId,
+  });
+
+  final String workstationId;
+  final String childTaskId;
+  final String? parentTaskId;
+
+  @override
+  List<Object?> get props => [workstationId, childTaskId, parentTaskId];
+}
+
+class FetchNotesForLinkingEvent extends TaskDetailEvent {
+  const FetchNotesForLinkingEvent({
+    required this.workstationId,
+  });
+
+  final String workstationId;
+
+  @override
+  List<Object?> get props => [workstationId];
+}
+
+class LinkNoteEvent extends TaskDetailEvent {
+  const LinkNoteEvent({
+    required this.workstationId,
+    required this.taskId,
+    required this.linkedNoteIds,
+  });
+
+  final String workstationId;
+  final String taskId;
+  final List<String> linkedNoteIds;
+
+  @override
+  List<Object?> get props => [workstationId, taskId, linkedNoteIds];
 }

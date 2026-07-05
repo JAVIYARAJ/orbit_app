@@ -34,4 +34,7 @@ abstract final class AppConfig {
     final value = dotenv.env['GOOGLE_IOS_CLIENT_ID'];
     return (value == null || value.isEmpty) ? null : value;
   }
+
+  /// Cloudinary cloud name.
+  static String get cloudinaryCloudName => _require('CLOUDINARY_CLOUD_NAME');
 }
