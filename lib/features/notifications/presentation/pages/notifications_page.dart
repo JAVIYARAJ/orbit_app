@@ -63,7 +63,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.white),
           onPressed: () => context.pop(),

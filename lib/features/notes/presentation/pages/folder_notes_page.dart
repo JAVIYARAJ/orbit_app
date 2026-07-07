@@ -157,7 +157,7 @@ class _FolderNotesViewState extends State<_FolderNotesView> {
                           note: note,
                           onTap: () {
                             // Detail navigation
-                            context.push('/notes/detail');
+                            context.push('/notes/detail', extra: note);
                           },
                         );
                       },

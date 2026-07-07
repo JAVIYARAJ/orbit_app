@@ -34,7 +34,7 @@ class OrbitDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       automaticallyImplyLeading: false,
-      centerTitle: true,
+      centerTitle: false,
       titleSpacing: 0,
       leadingWidth: 56,
       leading: Padding(

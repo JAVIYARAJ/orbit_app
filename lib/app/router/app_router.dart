@@ -14,6 +14,7 @@ import 'package:orbit_app/features/dashboard/presentation/pages/dashboard_page.d
 import 'package:orbit_app/features/notes/presentation/pages/note_detail_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/notes_page.dart';
 import 'package:orbit_app/features/notes/presentation/pages/folder_notes_page.dart';
+import 'package:orbit_app/features/notes/domain/entities/note_entity.dart';
 import 'package:orbit_app/features/projects/presentation/pages/project_detail_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/projects_page.dart';
 import 'package:orbit_app/features/projects/presentation/pages/create_project_page.dart';
@@ -200,7 +201,10 @@ GoRouter buildAppRouter(AuthCubit authCubit) => GoRouter(
                 GoRoute(
                   path: 'detail',
                   name: 'noteDetail',
-                  builder: (context, state) => const NoteDetailPage(),
+                  builder: (context, state) {
+                    final note = state.extra as NoteEntity?;
+                    return NoteDetailPage(note: note);
+                  },
                 ),
                 GoRoute(
                   path: 'folder/:folderId',

@@ -123,6 +123,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   void _showAttachmentSourceSheet() {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: const Color(0xFF141518),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -729,6 +730,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           child: Scaffold(
             backgroundColor: const Color(0xFF1E1F24), // Match dark grey background from web
           appBar: AppBar(
+            centerTitle: false,
             backgroundColor: const Color(0xFF1E1F24),
             elevation: 0,
             scrolledUnderElevation: 0,
@@ -893,7 +895,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 final isImage = att.mimeType.startsWith('image/') ||
                     att.url.toLowerCase().endsWith('.png') ||
                     att.url.toLowerCase().endsWith('.jpg') ||
-                    att.url.toLowerCase().endsWith('.jpeg');
+                    att.url.toLowerCase().endsWith('.jpeg') ||
+                    att.url.toLowerCase().endsWith('.heic') ||
+                    att.url.toLowerCase().endsWith('.heif') ||
+                    att.url.toLowerCase().endsWith('.webp') ||
+                    att.url.toLowerCase().endsWith('.gif');
                 return Container(
                   width: 160,
                   decoration: BoxDecoration(
